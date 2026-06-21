@@ -1,0 +1,11 @@
+[package]
+name = "tungsten-mc-parse"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tungsten-wg = { path = "../../tungsten-wg" }
+bumpalo = "3.19.0"
+serde = {version = "1.0.219", features = ["derive"]}
+serde_json = "1.0.143"
+clap = { version = "4.5", features = ["derive"] }
