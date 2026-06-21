@@ -16,17 +16,14 @@ pub mod transform_spmt;
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Minecraft Worldgen SPMT Transformer & Codegen", long_about = None)]
 struct Args {
-    #[arg(short, long, default_value = "vanilla_worldgen_1.21.1")]
-    mod_folder: String,
+    #[arg(short, long)]
+    mod_folder: Option<String>,
 
-    #[arg(short, long, default_value = "vanilla_worldgen_1.21.1")]
-    base_version: String,
-
-    #[arg(short, long, default_value = "../rcl_density")]
-    output_dir: PathBuf,
+    #[arg(short, long, default_value = "density")]
+    output: PathBuf,
 
     #[arg(long, default_value_t = false)]
-    skip_shaders: bool,
+    cuda: bool,
 
     #[arg(long, default_value_t = 16)]
     chunk_size: usize,
@@ -54,10 +51,15 @@ pub fn main() {
 fn run_with_args(args: Args) {
     let mut data = config_load::MinecraftDataRaw::new();
 
+    // base version is always at crate_root/vanilla_worldgen
+    let macro_root = env!("CARGO_MANIFEST_DIR");
+    let mut folder_path = PathBuf::from(macro_root);
+    folder_path.push("vanilla_worldgen");
+
     // 1. Load configs based on CLI args
-    config_load::load_all_configs(&mut data, &args.base_version, None);
-    if args.mod_folder != args.base_version {
-        config_load::load_all_configs(&mut data, &args.mod_folder, None);
+    config_load::load_all_configs(&mut data, &folder_path.to_string_lossy(), None);
+    if let Some(mod_folder) = &args.mod_folder {
+        config_load::load_all_configs(&mut data, mod_folder, None);
     }
 
     let arena = bumpalo::Bump::with_capacity(1 * 1024 * 1024);
@@ -95,10 +97,9 @@ fn run_with_args(args: Args) {
     }
 
     // 4. Configure the Compiler
-    // Assuming `CompilerConfig` was expanded to include Naga/CUDA toggles
     let config = CompilerConfig::new()
         .with_rcl(true)
-        .with_cuda(true)
+        .with_cuda(args.cuda) // Now respects the CLI flag
         .rcl_module_names("density_function", "orchestration");
 
     // 5. Run the Compiler Library
@@ -107,66 +108,48 @@ fn run_with_args(args: Args) {
         compile(&program, &config).expect("Fatal error during codegen compilation");
 
     // 6. Write Outputs to Disk
-    let folder = args.output_dir.as_path().to_str().unwrap();
-    std::fs::create_dir_all(folder).expect("Unable to create output directory");
+
+    // Fix: Use `with_extension` instead of `join` to properly append `.rs` to the filename
+    let real_path = args.output.with_extension("rs");
+    println!("Preparing to write RCL output to '{}'", real_path.display());
+    if let Some(folder) = real_path.parent() {
+        if !folder.as_os_str().is_empty() {
+            std::fs::create_dir_all(folder).expect("Unable to create output directory");
+        }
+    }
 
     // --- Write RCL ---
-    if let Some(rcl_code) = compiled_output.rcl_density_function {
-        let path = format!("{}/src/density_function.rs", folder);
-        std::fs::write(&path, &rcl_code).unwrap();
-        println!("Generated '{}' ({} bytes)", path, rcl_code.len());
+    // Safely write the newly combined RCL output block
+    if let Some(rcl_code) = compiled_output.rcl {
+        std::fs::write(&real_path, rcl_code).unwrap();
+        println!("Generated inline RCL at '{}'", real_path.display());
     }
-
-    if let Some(orch_code) = compiled_output.rcl_orchestration {
-        let path = format!("{}/src/orchestration.rs", folder);
-        std::fs::write(&path, &orch_code).unwrap();
-        println!("Generated '{}' ({} bytes)", path, orch_code.len());
-    }
-
-    // // --- Write Naga / WGSL Shaders ---
-    // currently not supported anymore (unsuccesful attempt)
-    // if !args.skip_shaders {
-    //     if let Some(gpu_orch) = compiled_output.gpu_orchestrator {
-    //         let path = format!("{}/src/gpu_orchestrator.rs", folder);
-    //         std::fs::write(&path, &gpu_orch).unwrap();
-    //         println!("Generated '{}' ({} bytes)", path, gpu_orch.len());
-    //     }
-
-    //     if let Some(naga_shaders) = compiled_output.naga_shaders {
-    //         let shaders_dir = format!("{}/shaders", folder);
-    //         if std::path::Path::new(&shaders_dir).exists() {
-    //             std::fs::remove_dir_all(&shaders_dir).unwrap();
-    //         }
-    //         std::fs::create_dir_all(&shaders_dir).unwrap();
-
-    //         for (name, wgsl_code) in naga_shaders {
-    //             let file_path = format!("{}/{}.wgsl", shaders_dir, name);
-    //             std::fs::write(&file_path, &wgsl_code).unwrap();
-    //             println!(
-    //                 "Generated WGSL shader '{}' ({} bytes)",
-    //                 file_path,
-    //                 wgsl_code.len()
-    //             );
-    //         }
-    //     }
-    // }
 
     // --- Write CUDA ---
-    // (Assuming CUDA still writes to the hardcoded ../cuda_density path)
-    let cuda_folder = "../cuda_density";
-    if let Some(cuda_density) = compiled_output.cuda_density_function {
-        std::fs::create_dir_all(format!("{}/src", cuda_folder)).unwrap_or_default();
-        std::fs::write(
-            format!("{}/src/density_function.cu", cuda_folder),
-            cuda_density,
-        )
-        .unwrap();
-        println!("Generated CUDA density function.");
-    }
-    if let Some(cuda_orch) = compiled_output.cuda_orchestration {
-        std::fs::create_dir_all(format!("{}/src", cuda_folder)).unwrap_or_default();
-        std::fs::write(format!("{}/src/orchestration.cu", cuda_folder), cuda_orch).unwrap();
-        println!("Generated CUDA orchestration.");
+    if args.cuda {
+        let cuda_base = args.output;
+        std::fs::create_dir_all(&cuda_base).expect("Unable to create CUDA output directory");
+        println!(
+            "CUDA output enabled. Preparing to write CUDA files to '{}'",
+            cuda_base.display()
+        );
+        if let Some(cuda_density) = compiled_output.cuda_density_function {
+            std::fs::write(
+                format!("{}_density_function.cu", cuda_base.display()),
+                cuda_density,
+            )
+            .unwrap();
+            println!("Generated CUDA density function.");
+        }
+
+        if let Some(cuda_orch) = compiled_output.cuda_orchestration {
+            std::fs::write(
+                format!("{}_orchestration.cu", cuda_base.display()),
+                cuda_orch,
+            )
+            .unwrap();
+            println!("Generated CUDA orchestration.");
+        }
     }
 }
 

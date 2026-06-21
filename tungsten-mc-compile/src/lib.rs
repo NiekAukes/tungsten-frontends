@@ -6,7 +6,7 @@ pub mod config_load;
 pub mod parse;
 pub mod transform_spmt;
 
-pub fn run_inline_generation(path: &str, base: &str) -> (String, String) {
+pub fn run_inline_generation(path: &str, base: &str) -> String {
     // 1. Load Raw Minecraft Data
     let mut data = config_load::MinecraftDataRaw::new();
     config_load::load_all_configs(&mut data, base, None);
@@ -35,13 +35,5 @@ pub fn run_inline_generation(path: &str, base: &str) -> (String, String) {
     let compiled_output =
         compile(&program, &config).expect("Failed to compile SPMT program into target backends");
 
-    // Extract the generated modules to satisfy the (String, String) return type
-    let rcl_output = compiled_output
-        .rcl_density_function
-        .expect("Expected RCL density function to be generated");
-    let orch_output = compiled_output
-        .rcl_orchestration
-        .expect("Expected RCL orchestration to be generated");
-
-    (rcl_output, orch_output)
+    compiled_output.rcl.expect("RCL output was not generated")
 }
