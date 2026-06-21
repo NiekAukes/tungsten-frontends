@@ -1,17 +1,15 @@
 use crate::{
-    parse::model::{Density, Spline, SplinePoint, SplineValue},
-    transform_spmt::{density::DensityBuilder, newvar, prefixvar},
+    parse::model::{Spline, SplineValue},
+    transform_spmt::{density::DensityBuilder, prefixvar},
 };
 
-use tungsten_wg::spmt::model::{
-    BinaryOperator, Expression, Function, Statement, Var, Variable, VariableType,
-};
+use tungsten_wg::spmt::model::{Expression, Statement, VariableType};
 
 impl<'a, 'm> DensityBuilder<'a, 'm> {
     pub fn lower_spline_definition_new(
         &mut self,
         spline: Spline<'a>,
-        canonical_name: Option<String>,
+        _canonical_name: Option<String>,
     ) -> Expression<'m> {
         // create spline cache
         let mut cache: Vec<(Spline<'a>, Expression<'m>)> = Vec::new();
@@ -32,7 +30,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         }
 
         // lower the spline and add it to the cache
-        let expr = self.lower_spline_new(spline.clone(), cache);
+        let expr = self.lower_spline_new(spline, cache);
         cache.push((spline, expr.clone()));
         expr
     }
@@ -250,21 +248,21 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
 }
 
 trait SplineLowering<'a, 'm> {
-    fn is_1d_spline(&self, spline: &Spline<'a>) -> bool;
+    // fn is_1d_spline(&self, spline: &Spline<'a>) -> bool;
     fn is_equal_spline(&self, spline1: &Spline<'a>, spline2: &Spline<'a>) -> bool;
 }
 
 impl<'a, 'm> SplineLowering<'a, 'm> for DensityBuilder<'a, 'm> {
-    fn is_1d_spline(&self, spline: &Spline<'a>) -> bool {
-        // check if all points are const
-        for point in spline.spline_points.iter() {
-            match point.value {
-                SplineValue::Const(_) => continue,
-                SplineValue::Spline(_) => return false,
-            }
-        }
-        true
-    }
+    // fn is_1d_spline(&self, spline: &Spline<'a>) -> bool {
+    //     // check if all points are const
+    //     for point in spline.spline_points.iter() {
+    //         match point.value {
+    //             SplineValue::Const(_) => continue,
+    //             SplineValue::Spline(_) => return false,
+    //         }
+    //     }
+    //     true
+    // }
 
     fn is_equal_spline(&self, spline1: &Spline<'a>, spline2: &Spline<'a>) -> bool {
         if spline1.spline_points.len() != spline2.spline_points.len() {

@@ -126,7 +126,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         return self.continue_spline_chain(&points[1..], p, input);
     }
 
-    fn lower_spline_value_expr(&mut self, value: &SplineValue<'a>, p: Var<'m>) -> Expression<'m> {
+    fn lower_spline_value_expr(&mut self, value: &SplineValue<'a>, _p: Var<'m>) -> Expression<'m> {
         match value {
             SplineValue::Const(c) => Expression::Float(*c as f32),
 

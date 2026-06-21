@@ -499,7 +499,7 @@ impl<'m> DensityParseFunctions<'m> for MinecraftData<'m> {
         value: &serde_json::Value,
         canonical_name: &str,
     ) -> Density<'m> {
-        let mut density = self.parse_density_function_from_value(value);
+        let density = self.parse_density_function_from_value(value);
         // create a new named reference with the given canonical name
         let name = self.arena.alloc(canonical_name.to_string());
         self.arena.alloc(DensityType::NamedDensityReference {

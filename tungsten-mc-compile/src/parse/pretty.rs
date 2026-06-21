@@ -84,9 +84,9 @@ impl<'m> DensityType<'m> {
                 )
             }
             DensityType::ShiftedNoise {
-                shift_y,
-                xz_scale,
-                y_scale,
+                shift_y: _,
+                xz_scale: _,
+                y_scale: _,
                 ..
             } => {
                 // writeln!(

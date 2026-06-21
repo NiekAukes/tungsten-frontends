@@ -3,16 +3,10 @@
 pub mod old;
 pub mod spline_new;
 
-use serde::de::value;
 
-use crate::parse::model::Density;
-use crate::parse::model::{Spline, SplinePoint, SplineValue};
-use crate::transform_spmt::density::{DensityBuilder, make_rpos3};
-use crate::transform_spmt::{newvar, prefixvar};
-use tungsten_wg::spmt::model::DensityInput;
-use tungsten_wg::spmt::model::{
-    BinaryOperator, Expression, Function, FunctionRef, Statement, Var, Variable, VariableType,
-};
+use crate::parse::model::Spline;
+use crate::transform_spmt::density::DensityBuilder;
+use tungsten_wg::spmt::model::Expression;
 
 /* New spline idea:
 

@@ -1,9 +1,8 @@
 use crate::parse::{
-    Density, Interned, MinecraftData,
+    MinecraftData,
     density::DensityParseFunctions,
-    model::{DensityType, Spline, SplinePoint, SplineType, SplineValue},
+    model::{Spline, SplinePoint, SplineType, SplineValue},
 };
-use std::hash::{Hash, Hasher};
 
 pub trait SplineParseFunctions<'m> {
     fn parse_spline(&self, value: &serde_json::Value) -> Spline<'m>;

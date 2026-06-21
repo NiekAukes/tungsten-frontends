@@ -1,12 +1,10 @@
 use core::panic;
 use std::{
     collections::HashMap,
-    fmt::{Debug, Formatter},
-    hash::Hash,
+    fmt::Debug,
 };
 
 use bumpalo::Bump;
-use serde::{Deserialize, Serialize, ser::Error};
 
 use crate::{
     config_load::MinecraftDataRaw,
@@ -14,7 +12,7 @@ use crate::{
         density::DensityParseFunctions,
         model::{
             Density, DensitySource, NoiseGeneratorSettings, NoiseRouter, NoiseSettings,
-            NormalNoise, NormalNoiseType, Spline,
+            NormalNoise, NormalNoiseType,
         },
     },
 };

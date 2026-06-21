@@ -1,4 +1,3 @@
-use std::rc::Rc;
 
 use crate::{
     parse::model::NormalNoise,
@@ -6,8 +5,7 @@ use crate::{
 };
 
 use tungsten_wg::spmt::model::{
-    BinaryOperator, DensityFunction, Expression, Function, PermutationTableInput, Statement, Var,
-    Variable, VariableType,
+    BinaryOperator, Expression, Function, PermutationTableInput, Statement, Var, VariableType,
 };
 
 const DOUBLE_PERLIN_NOISE_AMPLITUDE: f64 = 0.16666666666666666;

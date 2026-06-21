@@ -1,15 +1,9 @@
-use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-    rc::Rc,
-};
-
-use clap::builder;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     parse::model::{Density, DensityType, NormalNoise},
     transform_spmt::{
-        BuilderState, DensityFunctionCache, NoiseCache, anonvar, newvar,
+        BuilderState, anonvar, newvar,
         noise::{lower_normal_noise, lower_old_blended_noise},
         prefixvar,
     },
@@ -17,9 +11,8 @@ use crate::{
 use tungsten_wg::{
     orchestrate::Scale,
     spmt::model::{
-        Addr, BinaryOperator, DensityFunction, DensityFunctionRef, DensityInput, Expression,
-        Function, FunctionRef, Interned, Name, PermutationTableInput, SPMT, Statement, Var,
-        Variable, VariableType,
+        BinaryOperator, DensityFunction, DensityFunctionRef, DensityInput, Expression, Function,
+        FunctionRef, Name, PermutationTableInput, Statement, Var, Variable, VariableType,
     },
 };
 
@@ -374,7 +367,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             let mut builder = DensityBuilder::new_named(self.arena, bs, canonical_name.clone());
             //let r = builder.lower_density(density);
             let r = lower_function(&mut builder, density);
-            let (density_function, helpers, bs_returned) = builder.finish(r);
+            let (density_function, _helpers, bs_returned) = builder.finish(r);
 
             // additional check to see if the density function is aliased
             if let Some(cached) = bs_returned.get_cached_density(&density) {
@@ -970,9 +963,9 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     left: Box::new(Expression::BinaryOp {
                         op: BinaryOperator::Subtract,
                         left: Box::new(y_expr),
-                        right: Box::new(Expression::Double((from_y))),
+                        right: Box::new(Expression::Double(from_y)),
                     }),
-                    right: Box::new(Expression::Double((to_y - from_y))),
+                    right: Box::new(Expression::Double(to_y - from_y)),
                 };
 
                 // 2. clamp(p.y, from_y, to_y)
@@ -999,9 +992,9 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     left: Box::new(Expression::BinaryOp {
                         op: BinaryOperator::Multiply,
                         left: Box::new(Expression::Variable(clamped_y.clone())),
-                        right: Box::new(Expression::Double((to_value - from_value))),
+                        right: Box::new(Expression::Double(to_value - from_value)),
                     }),
-                    right: Box::new(Expression::Double((from_value))),
+                    right: Box::new(Expression::Double(from_value)),
                 }
             }
             DensityType::CacheOnce { argument } => {
@@ -1041,11 +1034,11 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             } => {
                 let (expr, perm_table) = lower_old_blended_noise(
                     self.rpos3.clone(),
-                    (smear_scale_multiplier),
-                    (xz_factor),
-                    (xz_scale),
-                    (y_factor),
-                    (y_scale),
+                    smear_scale_multiplier,
+                    xz_factor,
+                    xz_scale,
+                    y_factor,
+                    y_scale,
                 );
                 self.density_function
                     .permutation_table_inputs
@@ -1166,7 +1159,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                         type_of_field: VariableType::F64,
                         known_idnex: None,
                     }),
-                    right: Box::new(Expression::Double((4.0))),
+                    right: Box::new(Expression::Double(4.0)),
                 };
                 let z_shift = Expression::BinaryOp {
                     op: BinaryOperator::Divide,
@@ -1176,9 +1169,9 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                         type_of_field: VariableType::F64,
                         known_idnex: None,
                     }),
-                    right: Box::new(Expression::Double((4.0))),
+                    right: Box::new(Expression::Double(4.0)),
                 };
-                let shift_vec = Expression::Construct {
+                let _shift_vec = Expression::Construct {
                     t: VariableType::Pos3,
                     args: vec![x_shift, Expression::Double(0.0), z_shift],
                 };
@@ -1238,7 +1231,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 Expression::BinaryOp {
                     op: BinaryOperator::Multiply,
                     left: Box::new(call),
-                    right: Box::new(Expression::Double((4.0))),
+                    right: Box::new(Expression::Double(4.0)),
                 }
             }
             DensityType::ShiftB { argument, ref name } => {
@@ -1254,7 +1247,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                                 type_of_field: VariableType::F64,
                                 known_idnex: None,
                             }),
-                            right: Box::new(Expression::Double((4.0))),
+                            right: Box::new(Expression::Double(4.0)),
                         },
                         Expression::BinaryOp {
                             op: BinaryOperator::Divide,
@@ -1264,7 +1257,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                                 type_of_field: VariableType::F64,
                                 known_idnex: None,
                             }),
-                            right: Box::new(Expression::Double((4.0))),
+                            right: Box::new(Expression::Double(4.0)),
                         },
                         Expression::Double(0.0),
                     ],
@@ -1325,7 +1318,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 Expression::BinaryOp {
                     op: BinaryOperator::Multiply,
                     left: Box::new(call),
-                    right: Box::new(Expression::Double((4.0))),
+                    right: Box::new(Expression::Double(4.0)),
                 }
             }
 
@@ -1452,7 +1445,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                         value: Expression::BinaryOp {
                             op: BinaryOperator::Multiply,
                             left: Box::new(Expression::Variable(v.clone())),
-                            right: Box::new(Expression::Double((neg_multiplier))),
+                            right: Box::new(Expression::Double(neg_multiplier)),
                         },
                     }],
                     else_branch: vec![Statement::Assign {
@@ -1619,7 +1612,7 @@ pub fn make_clamp(input: Expression, min: f64, max: f64) -> Expression {
     // }
     Expression::ExternCall {
         function_name: "clamp".into(),
-        parameters: vec![input, Expression::Double((min)), Expression::Double((max))],
+        parameters: vec![input, Expression::Double(min), Expression::Double(max)],
         parameter_types: vec![VariableType::F64, VariableType::F64, VariableType::F64],
     }
 }
@@ -1822,10 +1815,4 @@ impl NamedDensity for DensityType<'_> {
             // DensityType::NamedDensityReference { name, argument } => todo!(),
         }
     }
-}
-
-fn trunc(v: f64) -> f64 {
-    // truncate to f32, and then convert back to f64, this mimics the precision loss that happens in Minecraft
-    let f = v as f32;
-    f as f64
 }

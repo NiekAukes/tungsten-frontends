@@ -5,16 +5,12 @@ use crate::{
 
 use tungsten_wg::{
     orchestrate::Scale,
-    spmt::model::{DensityFunctionRef, Expression, Name, SPMT, Var, Variable, VariableType},
+    spmt::model::{DensityFunctionRef, Name, SPMT, Var, Variable, VariableType},
 };
 
 pub mod density;
 pub mod noise;
 pub mod spline;
-
-fn lit(v: f64) -> Expression<'static> {
-    Expression::Float(v as f32)
-}
 
 pub fn newvar<'m>(arena: &'m bumpalo::Bump, name: &str, t: VariableType) -> Var<'m> {
     Var::new(arena.alloc(Variable {
@@ -123,7 +119,7 @@ impl<'a, 'm> Transformer<'a, 'm> {
             // set the working dimensions and scaled origin in the builder state based on the density source type
 
             match density {
-                DensitySource::SingleSamplingDensity { density } => {
+                DensitySource::SingleSamplingDensity { density: _ } => {
                     {
                         let bs = self.builder_state.as_mut().unwrap();
                         bs.working_dimensions = (1, 1, 1);
