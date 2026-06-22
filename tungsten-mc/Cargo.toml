@@ -3,4 +3,12 @@ name = "tungsten-mc"
 version = "0.1.0"
 edition = "2024"
 
+
+[build-dependencies]
+tungsten-mc-compile = { path = "../tungsten-mc-compile" }
+tungsten-wg = { path = "../../tungsten-wg" }
+
 [dependencies]
+md5 = "0.7.0"
+bytemuck = { version = "1", features = ["derive"] }
+pollster = "0.4"

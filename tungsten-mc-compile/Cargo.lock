@@ -567,7 +567,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tungsten-mc-parse"
+name = "tungsten-mc-compile"
 version = "0.1.0"
 dependencies = [
  "bumpalo",
