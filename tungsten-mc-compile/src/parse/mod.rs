@@ -176,7 +176,7 @@ impl<'m> Debug for MinecraftData<'m> {
 impl<'m> MinecraftData<'m> {
     pub fn new(arena: &'m Bump, raw: &'m MinecraftDataRaw, chunk_size: usize) -> MinecraftData<'m> {
         MinecraftData {
-            arena: arena,
+            arena,
             raw_data: raw,
             noise_settings: HashMap::new(),
             density_functions: HashMap::new(),
@@ -261,7 +261,7 @@ impl<'m> MinecraftData<'m> {
             default_fluid_level,
             disable_mob_generation,
             noise,
-            noise_router: noise_router,
+            noise_router,
         })
     }
 

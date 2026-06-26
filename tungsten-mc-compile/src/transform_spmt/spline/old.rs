@@ -19,7 +19,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         canonical_name: Option<String>,
     ) -> Expression<'m> {
         let mut function: Function<'m> = Function {
-            canonical_name: canonical_name,
+            canonical_name,
             parameters: Vec::new(),
             body: Vec::new(),
             variables: Vec::new(),

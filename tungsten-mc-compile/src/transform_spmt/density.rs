@@ -334,9 +334,9 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         let input = DensityInput {
             var: v.clone(),
             density_function: density_function_ref.clone(),
-            scaled_origin: scaled_origin,
-            scaled_position: scaled_position,
-            dimensions: dimensions,
+            scaled_origin,
+            scaled_position,
+            dimensions,
         };
 
         self.noise_inputs.insert(noise_scaled, input.clone());
@@ -438,9 +438,9 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         let input = DensityInput {
             var: v.clone(),
             density_function: density_function_ref.clone(),
-            scaled_origin: scaled_origin,
-            scaled_position: scaled_position,
-            dimensions: dimensions,
+            scaled_origin,
+            scaled_position,
+            dimensions,
         };
         self.add_density_input_to_cache(density, input.clone());
         self.density_function.density_inputs.push(input.clone());
@@ -484,9 +484,9 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         let input = DensityInput {
             var: v.clone(),
             density_function: density_function_ref.clone(),
-            scaled_origin: scaled_origin,
-            scaled_position: scaled_position,
-            dimensions: dimensions,
+            scaled_origin,
+            scaled_position,
+            dimensions,
         };
 
         self.density_function.density_inputs.push(input.clone());
@@ -1142,7 +1142,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                             .collect();
                         Expression::FunctionCall {
                             function: noise_function_ref,
-                            parameters: parameters,
+                            parameters,
                         }
                     }),
                 );
@@ -1312,7 +1312,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     .collect();
                 let call = Expression::FunctionCall {
                     function: noise_function_ref,
-                    parameters: parameters,
+                    parameters,
                 };
                 // multiply the result by 4
                 Expression::BinaryOp {
@@ -1537,7 +1537,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     .collect();
                 let noise_call = Expression::FunctionCall {
                     function: noise_function_ref,
-                    parameters: parameters,
+                    parameters,
                 };
                 Expression::BinaryOp {
                     op: BinaryOperator::Multiply,

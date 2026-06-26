@@ -52,7 +52,7 @@ impl<'m> SplineParseFunctions<'m> for MinecraftData<'m> {
                 });
             }
             let spline = SplineType {
-                coordinate: coordinate,
+                coordinate,
                 spline_points: self.arena.alloc_slice_clone(&splinepoints),
             };
             self.arena.alloc(spline)

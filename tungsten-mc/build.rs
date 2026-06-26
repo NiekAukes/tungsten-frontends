@@ -4,8 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 
 // Adjust import paths to match your actual crate names
-use tungsten_mc_compile::{MinecraftCompilerConfig, run_generation};
-use tungsten_wg::CompilerConfig;
+use tungsten_mc_compile::{CompilerConfig, MinecraftCompilerConfig, run_generation};
 
 fn debug_print(_msg: &str) {
     //println!("cargo:warning={}", msg);
@@ -20,7 +19,6 @@ fn main() {
 
     // 4. Configure the Minecraft pipeline
     let config = MinecraftCompilerConfig::new()
-        .with_target_dimension("minecraft:overworld")
         .with_chunk_size(16)
         .with_backend_config(backend_config);
 

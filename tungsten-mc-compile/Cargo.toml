@@ -1,11 +1,30 @@
 [package]
 name = "tungsten-mc-compile"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+authors = ["Niek Aukes"]
+description = "Minecraft worldgen compiler - parses Minecraft data packs and compiles them to optimized Rust/CUDA code"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/NiekAukes/tungsten-frontends"
+readme = "README.md"
+keywords = ["minecraft", "worldgen", "compiler", "datapack"]
+categories = ["compilers", "game-engines"]
+exclude = [
+    "target/",
+    "density/",
+]
+
+[[bin]]
+name = "tungsten-mc-compile"
+path = "src/main.rs"
+
+[lib]
+name = "tungsten_mc_compile"
+path = "src/lib.rs"
 
 [dependencies]
-tungsten-wg = { path = "../../tungsten-wg" }
+tungsten-wg = { version = "0.1.0" }
 bumpalo = "3.19.0"
-serde = {version = "1.0.219", features = ["derive"]}
+serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.143"
 clap = { version = "4.5", features = ["derive"] }

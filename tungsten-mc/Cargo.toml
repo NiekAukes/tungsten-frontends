@@ -6,7 +6,6 @@ edition = "2024"
 
 [build-dependencies]
 tungsten-mc-compile = { path = "../tungsten-mc-compile" }
-tungsten-wg = { path = "../../tungsten-wg" }
 
 [dependencies]
 md5 = "0.7.0"
