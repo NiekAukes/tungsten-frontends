@@ -1,0 +1,16 @@
+[package]
+name = "tungsten-diff-harness"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "diff-harness"
+path = "src/main.rs"
+
+[dependencies]
+libloading = "0.8"
+approx = "0.5"
+clap = { version = "4.5", features = ["derive", "env"] }
+tungsten-mc-compile = { path = "../tungsten-mc-compile" }
+rand = "0.10.2"
+bumpalo = "3.19.0"

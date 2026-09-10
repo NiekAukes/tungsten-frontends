@@ -3,4 +3,9 @@ resolver = "3"
 members = [
     "tungsten-mc-compile",
     "tungsten-mc",
+    "tungsten-diff-harness",
 ]
+# rust_wrapper is compiled out-of-band (its own workspace) by the harness at
+# runtime, once a concrete density.rs has been generated, so it must stay out
+# of cargo's normal member resolution.
+exclude = ["tungsten-diff-harness/rust_wrapper"]

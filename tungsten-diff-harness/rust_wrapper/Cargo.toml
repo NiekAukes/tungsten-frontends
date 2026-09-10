@@ -1,0 +1,25 @@
+[workspace]
+# Deliberately its own workspace: this crate is built out-of-band via
+# `cargo build --manifest-path` from the diff harness, against whatever
+# density.rs was generated for the run under test, and must not be pulled
+# into the main tungsten-frontends workspace.
+
+[package]
+name = "tungsten-diff-rust-wrapper"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Matches tungsten-mc/Cargo.toml: xoroshiro.rs hashes seed names via md5.
+md5 = "0.7.0"
+
+[profile.dev]
+opt-level = 0    # Default for dev, but good to be explicit
+debug = false    # Disables debug info generation (can save 20-40% build time)
+
+[target.x86_64-unknown-linux-gnu]
+# For mold (Linux)
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
