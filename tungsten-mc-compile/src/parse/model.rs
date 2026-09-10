@@ -405,15 +405,15 @@ pub type Spline<'m> = Interned<'m, SplineType<'m>>;
 
 #[derive(PartialEq, Hash, Debug)]
 pub struct SplineType<'m> {
-    pub(crate) coordinate: Density<'m>,
-    pub(crate) spline_points: &'m [SplinePoint<'m>],
+    pub coordinate: Density<'m>,
+    pub spline_points: &'m [SplinePoint<'m>],
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct SplinePoint<'m> {
-    pub(crate) derivative: f64,
-    pub(crate) location: f64,
-    pub(crate) value: SplineValue<'m>,
+    pub derivative: f64,
+    pub location: f64,
+    pub value: SplineValue<'m>,
 }
 
 #[derive(PartialEq, Debug, Clone)]

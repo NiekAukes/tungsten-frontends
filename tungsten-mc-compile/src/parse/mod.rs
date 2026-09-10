@@ -154,7 +154,7 @@ pub type Interned<'m, T> = &'m T; // TODO intern later
 
 pub struct MinecraftData<'m> {
     arena: &'m Bump,
-    raw_data: &'m MinecraftDataRaw,
+    raw_data: MinecraftDataRaw,
     pub noise_settings: HashMap<String, NoiseGeneratorSettings<'m>>,
     pub density_functions: HashMap<String, Density<'m>>,
     pub normal_noises: HashMap<String, NormalNoise<'m>>,
@@ -174,7 +174,7 @@ impl<'m> Debug for MinecraftData<'m> {
 //const SZ_XZ: i32 = 16 * 8;
 
 impl<'m> MinecraftData<'m> {
-    pub fn new(arena: &'m Bump, raw: &'m MinecraftDataRaw, chunk_size: usize) -> MinecraftData<'m> {
+    pub fn new(arena: &'m Bump, raw: MinecraftDataRaw, chunk_size: usize) -> MinecraftData<'m> {
         MinecraftData {
             arena,
             raw_data: raw,
@@ -182,6 +182,31 @@ impl<'m> MinecraftData<'m> {
             density_functions: HashMap::new(),
             normal_noises: HashMap::new(),
             chunk_size,
+        }
+    }
+
+    pub fn from_noise_router(arena: &'m Bump, raw_data: MinecraftDataRaw, router: NoiseRouter<'m>) -> MinecraftData<'m> {
+        let overworld_noise_generator_settings = NoiseGeneratorSettings {
+            aquifers_enabled: true,
+            default_block: "minecraft:stone".to_string(),
+            default_fluid: "minecraft:water".to_string(),
+            default_fluid_level: 64,
+            disable_mob_generation: false,
+            noise: NoiseSettings {
+                height: 384,
+                min_y: -64,
+                size_horizontal: 1,
+                size_vertical: 2,
+            },
+            noise_router: router,
+        };
+        MinecraftData {
+            arena, 
+            raw_data,
+            noise_settings: HashMap::from([("minecraft:overworld".to_string(), overworld_noise_generator_settings)]),
+            density_functions: HashMap::new(),
+            normal_noises: HashMap::new(),
+            chunk_size: 16,
         }
     }
 

@@ -63,7 +63,7 @@ fn run_with_args(args: Args) {
     }
 
     let arena = bumpalo::Bump::with_capacity(1 * 1024 * 1024);
-    let mut mcdata = parse::MinecraftData::new(&arena, &data, args.chunk_size);
+    let mut mcdata = parse::MinecraftData::new(&arena, data, args.chunk_size);
     mcdata.parse_from_raw();
 
     if args.verbose {

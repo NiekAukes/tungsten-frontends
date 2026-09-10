@@ -32,9 +32,12 @@ use bumpalo::Bump;
 pub use tungsten_wg::CompilerConfig;
 use tungsten_wg::{compile, CompiledOutput};
 
+use crate::parse::MinecraftData;
+
 pub mod config_load;
 pub mod parse;
 pub mod transform_spmt;
+pub mod shrink;
 
 /// Configuration for the Minecraft worldgen compilation process.
 ///
@@ -190,7 +193,7 @@ pub fn run_generation(config: &MinecraftCompilerConfig) -> CompiledOutput {
 
     // 2. Parse Data
     let arena = Bump::with_capacity(1 * 1024 * 1024);
-    let mut mcdata = parse::MinecraftData::new(&arena, &data, config.chunk_size);
+    let mut mcdata = parse::MinecraftData::new(&arena, data, config.chunk_size);
     mcdata.parse_from_raw();
 
     let noise_generator = mcdata
@@ -205,5 +208,47 @@ pub fn run_generation(config: &MinecraftCompilerConfig) -> CompiledOutput {
 
     // 4. Delegate to the new compiler library
     compile(&program, &config.backend_config)
+        .expect("Failed to compile SPMT program into target backends")
+}
+
+pub fn run_parse<'m>(arena: &'m Bump, config: &MinecraftCompilerConfig) -> MinecraftData<'m> {
+    // 1. Load Raw Minecraft Data
+    let mut data = config_load::MinecraftDataRaw::new();
+
+    // base version is always at crate_root/vanilla_worldgen
+    let macro_root = env!("CARGO_MANIFEST_DIR");
+    let mut folder_path = PathBuf::from(macro_root);
+    folder_path.push("vanilla_worldgen");
+
+    // 1. Load configs based on CLI args
+    config_load::load_all_configs(&mut data, &folder_path.to_string_lossy(), None);
+
+    if let Some(mod_path) = &config.mod_path {
+        config_load::load_all_configs(&mut data, mod_path, None);
+    }
+
+    // 2. Parse Data
+    // let arena = Bump::with_capacity(1 * 1024 * 1024);
+    let mut mcdata = parse::MinecraftData::new(arena, data, config.chunk_size);
+    mcdata.parse_from_raw();
+
+    mcdata
+}
+
+pub fn run_generation_from_ast(config: &CompilerConfig, ast: &MinecraftData) -> CompiledOutput {
+    let mcdata = ast;
+
+    let noise_generator = mcdata
+        .noise_settings
+        .get("minecraft:overworld")
+        .unwrap_or_else(|| panic!("Could not find {} settings", "minecraft:overworld"));
+
+    // 3. Transform to SPMT Program
+    let transform_arena = Bump::with_capacity(1 * 1024 * 1024);
+    let transformer = transform_spmt::Transformer::new(&transform_arena);
+    let program = transformer.transform(noise_generator);
+
+    // 4. Delegate to the new compiler library
+    compile(&program, &config)
         .expect("Failed to compile SPMT program into target backends")
 }
