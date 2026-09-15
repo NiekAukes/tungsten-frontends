@@ -16,7 +16,8 @@ pub fn build_cuda_shared_lib(config: &HarnessConfig) {
         );
     }
 
-    let helpers_path = config.generated_dir.join("helpers.cu");
+    // let helpers_path = config.generated_dir.join("helpers.cu");
+    let helpers_path = config.cuda_wrapper_src.join("helpers.cu");
     assert!(
         helpers_path.exists(),
         "expected CUDA helpers at {} (not yet generated for this pipeline)",
@@ -29,17 +30,19 @@ pub fn build_cuda_shared_lib(config: &HarnessConfig) {
     let out_path = config.cuda_shared_lib_path();
 
     let status = Command::new("nvcc")
-        .arg("-arch=native")
+        .arg("-arch=compute_75")
         .arg("--shared")
         .arg("-Xcompiler")
         .arg("-fPIC")
         .arg("-O0")
-        .arg("--threads all")
+        .arg("-t 0")
         .arg("-o")
         .arg(&out_path)
-        .arg(&config.cuda_wrapper_src)
+        .arg(&config.cuda_wrapper_src.join("main.cu"))
         .arg("-I")
         .arg(&config.generated_dir)
+        .arg("-I")
+        .arg(&config.cuda_wrapper_src)
         .env("CMAKE_CUDA_COMPILER_LAUNCHER", "ccache")
         .status()
         .expect("failed to spawn `nvcc` (is the CUDA toolkit installed?)");

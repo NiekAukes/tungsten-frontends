@@ -88,7 +88,7 @@ impl HarnessConfig {
             generated_dir,
             build_dir,
             rust_wrapper_manifest: manifest_dir.join("rust_wrapper").join("Cargo.toml"),
-            cuda_wrapper_src: manifest_dir.join("cuda_wrapper").join("cuda_wrapper.cu"),
+            cuda_wrapper_src: manifest_dir.join("cuda_wrapper"),
             seed: cli.seed,
             origin: (cli.origin_x, cli.origin_y, cli.origin_z),
             epsilon: cli.epsilon,
