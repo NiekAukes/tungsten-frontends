@@ -19,11 +19,14 @@ struct Args {
     #[arg(short, long)]
     mod_folder: Option<String>,
 
-    #[arg(short, long, default_value = "density")]
+    #[arg(short, long, default_value = ".")]
     output: PathBuf,
 
     #[arg(long, default_value_t = false)]
     cuda: bool,
+
+    #[arg(long, default_value_t = false)]
+    rust: bool,
 
     #[arg(long, default_value_t = 16)]
     chunk_size: usize,
@@ -110,7 +113,7 @@ fn run_with_args(args: Args) {
     // 6. Write Outputs to Disk
 
     // Fix: Use `with_extension` instead of `join` to properly append `.rs` to the filename
-    let real_path = args.output.with_extension("rs");
+    let real_path = args.output.join("density").with_extension("rs");
     println!("Preparing to write RCL output to '{}'", real_path.display());
     if let Some(folder) = real_path.parent() {
         if !folder.as_os_str().is_empty() {
@@ -118,15 +121,19 @@ fn run_with_args(args: Args) {
         }
     }
 
-    // --- Write RCL ---
-    // Safely write the newly combined RCL output block
-    if let Some(rcl_code) = compiled_output.rcl {
+    if args.rust || (!args.cuda && !args.rust) {
+        let Some(rcl_code) = compiled_output.rcl else {
+            eprintln!("No RCL output was generated.");
+            return;
+        };
+        // --- Write RCL ---
+        // Safely write the newly combined RCL output block
         std::fs::write(&real_path, rcl_code).unwrap();
         println!("Generated inline RCL at '{}'", real_path.display());
-    }
-
-    // --- Write CUDA ---
+    } 
     if args.cuda {
+
+        // --- Write CUDA ---
         let cuda_base = args.output;
         std::fs::create_dir_all(&cuda_base).expect("Unable to create CUDA output directory");
         println!(
@@ -135,7 +142,7 @@ fn run_with_args(args: Args) {
         );
         if let Some(cuda_density) = compiled_output.cuda_density_function {
             std::fs::write(
-                format!("{}_density_function.cu", cuda_base.display()),
+                format!("{}/density_function.cu", cuda_base.display()),
                 cuda_density,
             )
             .unwrap();
@@ -144,12 +151,14 @@ fn run_with_args(args: Args) {
 
         if let Some(cuda_orch) = compiled_output.cuda_orchestration {
             std::fs::write(
-                format!("{}_orchestration.cu", cuda_base.display()),
+                format!("{}/orchestration.cu", cuda_base.display()),
                 cuda_orch,
             )
             .unwrap();
             println!("Generated CUDA orchestration.");
         }
+    } else {
+        eprintln!("No output was generated because neither RCL nor CUDA output is enabled/generated.");
     }
 }
 

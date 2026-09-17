@@ -18,4 +18,7 @@ impl<'m> ShrinkMethod<'m> for RemoveOperand {
     fn perform_shrink(&mut self, arena: &'m Bump, remaining_strikes: u32, _source: DensitySource<'m>) -> DensitySource<'m> {
         todo!()
     }
+    fn reenable(&mut self) {
+       
+    }
 }

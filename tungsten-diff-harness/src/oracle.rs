@@ -17,10 +17,9 @@ fn index_to_coord(idx: usize) -> (usize, usize, usize) {
     (x, y, z)
 }
 
-/// Phase 4: the differential oracle. Panics with a detailed report on the
-/// first mismatch (and a summary of how many others were found) if the Rust
-/// and CUDA pipelines disagree beyond `epsilon`.
-pub fn assert_pipelines_agree(result: &RunResult, epsilon: f64) {
+/// Collects every sample index where the Rust and CUDA pipelines disagree
+/// beyond `epsilon`.
+fn find_mismatches(result: &RunResult, epsilon: f64) -> Vec<(usize, f64, f64)> {
     let mut mismatches = Vec::new();
 
     for idx in 0..DIMS {
@@ -31,6 +30,21 @@ pub fn assert_pipelines_agree(result: &RunResult, epsilon: f64) {
             mismatches.push((idx, rust_value, cuda_value));
         }
     }
+
+    mismatches
+}
+
+/// Non-panicking version of [`assert_pipelines_agree`], used by the shrink
+/// loop to test whether a candidate reduction still reproduces the bug.
+pub fn pipelines_agree(result: &RunResult, epsilon: f64) -> bool {
+    find_mismatches(result, epsilon).is_empty()
+}
+
+/// Phase 4: the differential oracle. Panics with a detailed report on the
+/// first mismatch (and a summary of how many others were found) if the Rust
+/// and CUDA pipelines disagree beyond `epsilon`.
+pub fn assert_pipelines_agree(result: &RunResult, epsilon: f64) {
+    let mismatches = find_mismatches(result, epsilon);
 
     if mismatches.is_empty() {
         return;

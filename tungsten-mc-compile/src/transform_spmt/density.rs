@@ -340,7 +340,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         };
 
         self.noise_inputs.insert(noise_scaled, input.clone());
-        self.density_function.density_inputs.push(input.clone());
+        self.density_function.add_density_input(input.clone());
         if let Some(func) = &mut self.function {
             func.variables.push(v);
         }
@@ -443,7 +443,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             dimensions,
         };
         self.add_density_input_to_cache(density, input.clone());
-        self.density_function.density_inputs.push(input.clone());
+        self.density_function.add_density_input(input.clone());
 
         if let Some(func) = &mut self.function {
             func.variables.push(v);
@@ -489,7 +489,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             dimensions,
         };
 
-        self.density_function.density_inputs.push(input.clone());
+        self.density_function.add_density_input(input.clone());
         if let Some(func) = &mut self.function {
             func.variables.push(v);
         }

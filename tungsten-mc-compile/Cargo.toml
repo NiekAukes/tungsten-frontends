@@ -23,7 +23,7 @@ name = "tungsten_mc_compile"
 path = "src/lib.rs"
 
 [dependencies]
-tungsten-wg = { version = "0.1.0" }
+tungsten-wg =  { path = "../../tungsten-wg" }
 bumpalo = "3.19.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.143"

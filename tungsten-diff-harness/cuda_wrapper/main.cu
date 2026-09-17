@@ -31,27 +31,27 @@ extern "C" {
 // (16 * 384 * 16 = 98304); mismatches return a non-zero code and write
 // nothing.
 int32_t run_cuda_pipeline(
-    float origin_x,
-    float origin_y,
-    float origin_z,
+    double origin_x,
+    double origin_y,
+    double origin_z,
     uint64_t world_seed,
-    float *out_ptr,
+    double *out_ptr,
     size_t out_len) {
   constexpr size_t DIMS = 16 * 384 * 16;
   if (out_len != DIMS) {
     return 1;
   }
 
-  float3 origin = make_float3(origin_x, origin_y, origin_z);
+  double3 origin = make_double3(origin_x, origin_y, origin_z);
 
   CudaPipeline_final_density pipeline(world_seed);
-  std::vector<float> result = pipeline.run(origin);
+  std::vector<double> result = pipeline.run(origin);
 
   if (result.size() != DIMS) {
     return 2;
   }
 
-  std::memcpy(out_ptr, result.data(), DIMS * sizeof(float));
+  std::memcpy(out_ptr, result.data(), DIMS * sizeof(double));
   return 0;
 }
 

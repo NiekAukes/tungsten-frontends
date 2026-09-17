@@ -44,6 +44,8 @@ pub fn build_cuda_shared_lib(config: &HarnessConfig) {
         .arg("-I")
         .arg(&config.cuda_wrapper_src)
         .env("CMAKE_CUDA_COMPILER_LAUNCHER", "ccache")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
         .status()
         .expect("failed to spawn `nvcc` (is the CUDA toolkit installed?)");
 

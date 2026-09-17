@@ -1,9 +1,6 @@
 use std::fmt;
 
-use crate::parse::{
-    model::DensityType,
-    model::{SplinePoint, SplineType, SplineValue},
-};
+use crate::parse::model::{DensityType, NormalNoise, NormalNoiseType, SplinePoint, SplineType, SplineValue};
 
 impl<'m> fmt::Display for DensityType<'m> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -18,8 +15,14 @@ impl<'m> DensityType<'m> {
             DensityType::Const(val) => {
                 writeln!(f, "{}Const({})", pad(indent), val)
             }
-            DensityType::Noise { .. } => {
-                writeln!(f, "{}Noise(...)", pad(indent))
+            DensityType::Noise { name, noise, xz_scale, y_scale } => {
+                writeln!(f, "{}Noise(", pad(indent))?;
+                writeln!(f, "{}    name={},", pad(indent), name)?;
+                noise.fmt_with_indent(f, indent+4)?;
+                writeln!(f, "{}    xz_scale={},", pad(indent), xz_scale)?;
+                writeln!(f, "{}    y_scale={}", pad(indent), y_scale)?;
+                writeln!(f, "{})", pad(indent))?; // Add the missing question mark for proper error handling
+                Ok(())
             }
             DensityType::Add { left, right } => {
                 writeln!(f, "{}Add:", pad(indent))?;
@@ -227,5 +230,25 @@ impl<'m> SplineValue<'m> {
                 spline.fmt_with_indent(f, indent + 2)
             }
         }
+    }
+}
+
+
+impl fmt::Display for NormalNoiseType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fmt_with_indent(f, 0)
+    }
+}
+
+impl NormalNoiseType {
+    fn fmt_with_indent(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
+        let pad = |n| " ".repeat(n);
+        let amplitudes = &self.amplitudes;
+        let first_octave = self.first_octave;
+        writeln!(f, "{}NormalNoise(", pad(indent))?;
+        writeln!(f, "{}    amplitudes={:?},", pad(indent), amplitudes)?;
+        writeln!(f, "{}    first_octave={},", pad(indent), first_octave)?;
+        writeln!(f, "{})", pad(indent))?;
+        Ok(())
     }
 }

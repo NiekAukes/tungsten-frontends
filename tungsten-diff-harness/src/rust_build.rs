@@ -37,7 +37,26 @@ pub fn build_rust_cdylib(config: &HarnessConfig) {
         .status()
         .expect("failed to spawn `cargo build` for the Rust wrapper");
 
-    assert!(status.success(), "cargo build of rust_wrapper failed");
+    // assert!(status.success(), "cargo build of rust_wrapper failed");
+    if !status.success() {
+        Command::new("cargo")
+        .arg("build")
+        .arg("--release")
+        .arg("--manifest-path")
+        .arg(&config.rust_wrapper_manifest)
+        .arg("--target-dir")
+        .arg(&target_dir)
+        .env(
+            "DENSITY_RS_PATH",
+            density_rs
+                .canonicalize()
+                .expect("failed to canonicalize density.rs path"),
+        )
+        .status()
+        .expect("failed to spawn `cargo build` for the Rust wrapper");
+        
+        panic!("cargo build of rust_wrapper failed");
+    }
 
     let so_path = config.rust_cdylib_path();
     assert!(

@@ -3,50 +3,37 @@ use bumpalo::Bump;
 use crate::parse::model::{Density, DensitySource, DensityType, Spline, SplineValue};
 use crate::shrink::ShrinkMethod;
 
-/// Replaces a coordinate-warping noise node (`ShiftedNoise`, `ShiftA`, `ShiftB`)
-/// anywhere in the tree with a plain `Noise` call using the same underlying
-/// noise, dropping the shift/warp inputs.
-pub struct SimplifyNoise {
+/// Unwraps `Cache2d` and `FlatCache` nodes anywhere in the tree, replacing
+/// them with their inner argument.
+///
+/// `Cache2d` may only ever occur directly under a `FlatCache`, so removing a
+/// `FlatCache` whose argument is a `Cache2d` must strip both at once instead
+/// of orphaning the `Cache2d`.
+pub struct RemoveWrappers {
     pub exhausted: bool,
 }
 
-impl SimplifyNoise {
-    fn is_target(density: &DensityType) -> bool {
-        matches!(
-            density,
-            DensityType::ShiftedNoise { .. } | DensityType::ShiftA { .. } | DensityType::ShiftB { .. }
-        )
+impl RemoveWrappers {
+    fn is_candidate(density: &DensityType) -> bool {
+        matches!(density, DensityType::Cache2d { .. } | DensityType::FlatCache { .. })
     }
 
-    fn to_simple_noise<'m>(density: &DensityType<'m>) -> DensityType<'m> {
+    /// The density that should replace `density` if it's removed.
+    fn removed<'m>(density: &DensityType<'m>) -> Density<'m> {
         match density {
-            DensityType::ShiftedNoise { name, noise, xz_scale, y_scale, .. } => DensityType::Noise {
-                name: name.clone(),
-                noise: *noise,
-                xz_scale: *xz_scale,
-                y_scale: *y_scale,
+            DensityType::Cache2d { argument } => *argument,
+            DensityType::FlatCache { argument } => match &**argument {
+                // Never orphan a Cache2d: strip it along with its FlatCache.
+                DensityType::Cache2d { argument: inner } => *inner,
+                _ => *argument,
             },
-            DensityType::ShiftA { argument, name } | DensityType::ShiftB { argument, name } => {
-                DensityType::Noise {
-                    name: name.clone(),
-                    noise: *argument,
-                    xz_scale: 1.0,
-                    y_scale: 1.0,
-                }
-            }
-            _ => unreachable!("to_simple_noise called on a non-target density"),
+            _ => unreachable!("removed called on a non-wrapper density"),
         }
     }
 
-    /// Recursively counts all `ShiftedNoise`/`ShiftA`/`ShiftB` nodes in the tree.
+    /// Recursively counts all removable wrapper nodes in the tree.
     fn count_candidates<'m>(density: Density<'m>) -> u32 {
-        // Named references are debug labels only; don't count the wrapper
-        // itself as a candidate, just look through it.
-        if let DensityType::NamedDensityReference { argument, .. } = &*density {
-            return Self::count_candidates(*argument);
-        }
-
-        let mut count = if Self::is_target(&density) { 1 } else { 0 };
+        let mut count = if Self::is_candidate(&density) { 1 } else { 0 };
 
         match &*density {
             DensityType::Add { left, right }
@@ -58,9 +45,10 @@ impl SimplifyNoise {
             }
 
             DensityType::Cache2d { argument }
+            | DensityType::FlatCache { argument }
+            | DensityType::NamedDensityReference { argument, .. }
             | DensityType::Squeeze { argument }
             | DensityType::Interpolated { argument }
-            | DensityType::FlatCache { argument }
             | DensityType::CacheOnce { argument }
             | DensityType::Abs { argument }
             | DensityType::Square { argument }
@@ -114,8 +102,8 @@ impl SimplifyNoise {
         count
     }
 
-    /// Walks the AST and rebuilds it, replacing exactly the `target_strike`-th
-    /// `ShiftedNoise`/`ShiftA`/`ShiftB` node with an equivalent plain `Noise`.
+    /// Walks the AST and rebuilds it, removing exactly the `target_strike`-th
+    /// wrapper node.
     fn replace_nth<'m>(
         arena: &'m Bump,
         density: Density<'m>,
@@ -123,19 +111,10 @@ impl SimplifyNoise {
         current_strike: &mut u32,
         intern: &impl Fn(&'m Bump, DensityType<'m>) -> Density<'m>,
     ) -> Density<'m> {
-        if let DensityType::NamedDensityReference { name, argument } = &*density {
-            let new_arg = Self::replace_nth(arena, *argument, target_strike, current_strike, intern);
-            return if std::ptr::eq(&*new_arg, &**argument) {
-                density
-            } else {
-                intern(arena, DensityType::NamedDensityReference { name: *name, argument: new_arg })
-            };
-        }
-
-        if Self::is_target(&density) {
+        if Self::is_candidate(&density) {
             if *current_strike == target_strike {
                 *current_strike += 1;
-                return intern(arena, Self::to_simple_noise(&density));
+                return Self::removed(&density);
             }
             *current_strike += 1;
         }
@@ -162,10 +141,22 @@ impl SimplifyNoise {
                 }
             }
 
-            DensityType::Cache2d { argument }
-            | DensityType::Squeeze { argument }
+            DensityType::Cache2d { argument } | DensityType::FlatCache { argument } => {
+                let new_arg = Self::replace_nth(arena, *argument, target_strike, current_strike, intern);
+                if std::ptr::eq(&*new_arg, &**argument) {
+                    density
+                } else {
+                    let new_dt = match &*density {
+                        DensityType::Cache2d { .. } => DensityType::Cache2d { argument: new_arg },
+                        DensityType::FlatCache { .. } => DensityType::FlatCache { argument: new_arg },
+                        _ => unreachable!(),
+                    };
+                    intern(arena, new_dt)
+                }
+            }
+
+            DensityType::Squeeze { argument }
             | DensityType::Interpolated { argument }
-            | DensityType::FlatCache { argument }
             | DensityType::CacheOnce { argument }
             | DensityType::Abs { argument }
             | DensityType::Square { argument }
@@ -175,10 +166,8 @@ impl SimplifyNoise {
                     density
                 } else {
                     let new_dt = match &*density {
-                        DensityType::Cache2d { .. } => DensityType::Cache2d { argument: new_arg },
                         DensityType::Squeeze { .. } => DensityType::Squeeze { argument: new_arg },
                         DensityType::Interpolated { .. } => DensityType::Interpolated { argument: new_arg },
-                        DensityType::FlatCache { .. } => DensityType::FlatCache { argument: new_arg },
                         DensityType::CacheOnce { .. } => DensityType::CacheOnce { argument: new_arg },
                         DensityType::Abs { .. } => DensityType::Abs { argument: new_arg },
                         DensityType::Square { .. } => DensityType::Square { argument: new_arg },
@@ -289,9 +278,9 @@ impl SimplifyNoise {
     }
 }
 
-impl<'m> ShrinkMethod<'m> for SimplifyNoise {
+impl<'m> ShrinkMethod<'m> for RemoveWrappers {
     fn name(&self) -> &str {
-        "simplify_noise"
+        "remove_wrappers"
     }
 
     fn can_shrink(&mut self, remaining_strikes: u32, source: DensitySource) -> (bool, u32) {
@@ -326,6 +315,7 @@ impl<'m> ShrinkMethod<'m> for SimplifyNoise {
             }
         }
     }
+
     fn reenable(&mut self) {
         self.exhausted = false;
     }

@@ -1,44 +1,83 @@
 use bumpalo::Bump;
 
-use crate::parse::model::{Density, DensitySource, DensityType, Spline, SplineValue};
+use crate::parse::model::{Density, DensitySource, DensityType, NormalNoise, NormalNoiseType, Spline, SplineValue};
 use crate::shrink::ShrinkMethod;
 
-/// Replaces a coordinate-warping noise node (`ShiftedNoise`, `ShiftA`, `ShiftB`)
-/// anywhere in the tree with a plain `Noise` call using the same underlying
-/// noise, dropping the shift/warp inputs.
-pub struct SimplifyNoise {
+/// Drops the highest octave (last amplitude) from a `NormalNoise` referenced
+/// anywhere in the tree, making the noise cheaper and less detailed.
+pub struct SimplifyNoiseParams {
     pub exhausted: bool,
 }
 
-impl SimplifyNoise {
-    fn is_target(density: &DensityType) -> bool {
-        matches!(
-            density,
-            DensityType::ShiftedNoise { .. } | DensityType::ShiftA { .. } | DensityType::ShiftB { .. }
-        )
+impl SimplifyNoiseParams {
+    /// A noise can be simplified further as long as it has more than one octave.
+    fn is_candidate(noise: &NormalNoiseType) -> bool {
+        noise.amplitudes.len() > 1
     }
 
-    fn to_simple_noise<'m>(density: &DensityType<'m>) -> DensityType<'m> {
-        match density {
-            DensityType::ShiftedNoise { name, noise, xz_scale, y_scale, .. } => DensityType::Noise {
-                name: name.clone(),
-                noise: *noise,
-                xz_scale: *xz_scale,
-                y_scale: *y_scale,
-            },
-            DensityType::ShiftA { argument, name } | DensityType::ShiftB { argument, name } => {
-                DensityType::Noise {
-                    name: name.clone(),
-                    noise: *argument,
-                    xz_scale: 1.0,
-                    y_scale: 1.0,
-                }
-            }
-            _ => unreachable!("to_simple_noise called on a non-target density"),
+    fn simplify(noise: &NormalNoiseType) -> NormalNoiseType {
+        let mut amplitudes = noise.amplitudes.clone();
+        amplitudes.pop();
+        NormalNoiseType {
+            first_octave: noise.first_octave,
+            amplitudes,
         }
     }
 
-    /// Recursively counts all `ShiftedNoise`/`ShiftA`/`ShiftB` nodes in the tree.
+    /// Returns the `NormalNoise` directly referenced by this node, if any.
+    fn noise_of<'m>(density: &DensityType<'m>) -> Option<NormalNoise<'m>> {
+        match density {
+            DensityType::Noise { noise, .. } => Some(*noise),
+            DensityType::ShiftedNoise { noise, .. } => Some(*noise),
+            DensityType::ShiftA { argument, .. } => Some(*argument),
+            DensityType::ShiftB { argument, .. } => Some(*argument),
+            DensityType::WeirdScaledSampler { noise_to_sample, .. } => Some(*noise_to_sample),
+            _ => None,
+        }
+    }
+
+    /// A node is a candidate if it directly references a `NormalNoise` that
+    /// still has more than one octave to drop.
+    fn is_target(density: &DensityType) -> bool {
+        Self::noise_of(density).is_some_and(Self::is_candidate)
+    }
+
+    /// Rebuilds `density` with its `NormalNoise` replaced by a version with
+    /// its highest octave dropped, preserving every other field.
+    fn with_simplified_noise<'m>(arena: &'m Bump, density: &DensityType<'m>) -> DensityType<'m> {
+        let noise = Self::noise_of(density).expect("with_simplified_noise called on a node without a NormalNoise");
+        let new_noise: NormalNoise<'m> = arena.alloc(Self::simplify(noise));
+
+        match density {
+            DensityType::Noise { name, xz_scale, y_scale, .. } => DensityType::Noise {
+                name: name.clone(),
+                noise: new_noise,
+                xz_scale: *xz_scale,
+                y_scale: *y_scale,
+            },
+            DensityType::ShiftedNoise { name, shift_x, shift_y, shift_z, xz_scale, y_scale, .. } => DensityType::ShiftedNoise {
+                name: name.clone(),
+                noise: new_noise,
+                shift_x: *shift_x,
+                shift_y: *shift_y,
+                shift_z: *shift_z,
+                xz_scale: *xz_scale,
+                y_scale: *y_scale,
+            },
+            DensityType::ShiftA { name, .. } => DensityType::ShiftA { name: name.clone(), argument: new_noise },
+            DensityType::ShiftB { name, .. } => DensityType::ShiftB { name: name.clone(), argument: new_noise },
+            DensityType::WeirdScaledSampler { input, noise_name, rarity_value_mapper, .. } => DensityType::WeirdScaledSampler {
+                input: *input,
+                noise_name: noise_name.clone(),
+                noise_to_sample: new_noise,
+                rarity_value_mapper: rarity_value_mapper.clone(),
+            },
+            _ => unreachable!("with_simplified_noise called on a non-target density"),
+        }
+    }
+
+    /// Recursively counts all nodes referencing a `NormalNoise` that can
+    /// still be simplified further.
     fn count_candidates<'m>(density: Density<'m>) -> u32 {
         // Named references are debug labels only; don't count the wrapper
         // itself as a candidate, just look through it.
@@ -114,8 +153,8 @@ impl SimplifyNoise {
         count
     }
 
-    /// Walks the AST and rebuilds it, replacing exactly the `target_strike`-th
-    /// `ShiftedNoise`/`ShiftA`/`ShiftB` node with an equivalent plain `Noise`.
+    /// Walks the AST and rebuilds it, dropping the highest octave from the
+    /// `NormalNoise` referenced by exactly the `target_strike`-th candidate.
     fn replace_nth<'m>(
         arena: &'m Bump,
         density: Density<'m>,
@@ -135,7 +174,7 @@ impl SimplifyNoise {
         if Self::is_target(&density) {
             if *current_strike == target_strike {
                 *current_strike += 1;
-                return intern(arena, Self::to_simple_noise(&density));
+                return intern(arena, Self::with_simplified_noise(arena, &density));
             }
             *current_strike += 1;
         }
@@ -289,9 +328,9 @@ impl SimplifyNoise {
     }
 }
 
-impl<'m> ShrinkMethod<'m> for SimplifyNoise {
+impl<'m> ShrinkMethod<'m> for SimplifyNoiseParams {
     fn name(&self) -> &str {
-        "simplify_noise"
+        "simplify_noise_params"
     }
 
     fn can_shrink(&mut self, remaining_strikes: u32, source: DensitySource) -> (bool, u32) {
@@ -326,6 +365,7 @@ impl<'m> ShrinkMethod<'m> for SimplifyNoise {
             }
         }
     }
+
     fn reenable(&mut self) {
         self.exhausted = false;
     }

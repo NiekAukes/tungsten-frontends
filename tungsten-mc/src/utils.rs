@@ -13,7 +13,7 @@ thread_local! {
     static CURRENT_SEED: RefCell<Option<i64>> = RefCell::new(None);
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PerlinNoiseSampler {
     pub permutation: [u8; 256],
     pub origin_x: f64,

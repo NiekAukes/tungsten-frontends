@@ -3,73 +3,46 @@ use bumpalo::Bump;
 use crate::parse::model::{Density, DensitySource, DensityType, Spline, SplineValue};
 use crate::shrink::ShrinkMethod;
 
-/// Replaces a coordinate-warping noise node (`ShiftedNoise`, `ShiftA`, `ShiftB`)
-/// anywhere in the tree with a plain `Noise` call using the same underlying
-/// noise, dropping the shift/warp inputs.
-pub struct SimplifyNoise {
+/// Unwraps every `NamedDensityReference` debug label in the tree at once,
+/// except the outermost one at the root (the current label added by the
+/// `Shrinker`), which must never be removed.
+///
+/// Stripping all of them in a single shrink means this method only ever
+/// needs to run once, instead of once per leftover label.
+///
+/// Run first so later shrink methods don't waste strikes navigating around
+/// leftover debug labels from previous shrink iterations.
+pub struct RemoveNamedReferences {
     pub exhausted: bool,
 }
 
-impl SimplifyNoise {
-    fn is_target(density: &DensityType) -> bool {
-        matches!(
-            density,
-            DensityType::ShiftedNoise { .. } | DensityType::ShiftA { .. } | DensityType::ShiftB { .. }
-        )
-    }
-
-    fn to_simple_noise<'m>(density: &DensityType<'m>) -> DensityType<'m> {
-        match density {
-            DensityType::ShiftedNoise { name, noise, xz_scale, y_scale, .. } => DensityType::Noise {
-                name: name.clone(),
-                noise: *noise,
-                xz_scale: *xz_scale,
-                y_scale: *y_scale,
-            },
-            DensityType::ShiftA { argument, name } | DensityType::ShiftB { argument, name } => {
-                DensityType::Noise {
-                    name: name.clone(),
-                    noise: *argument,
-                    xz_scale: 1.0,
-                    y_scale: 1.0,
-                }
-            }
-            _ => unreachable!("to_simple_noise called on a non-target density"),
+impl RemoveNamedReferences {
+    /// Whether any non-root `NamedDensityReference` exists in the tree.
+    fn has_any(density: Density, is_root: bool) -> bool {
+        if !is_root && matches!(&*density, DensityType::NamedDensityReference { .. }) {
+            return true;
         }
-    }
-
-    /// Recursively counts all `ShiftedNoise`/`ShiftA`/`ShiftB` nodes in the tree.
-    fn count_candidates<'m>(density: Density<'m>) -> u32 {
-        // Named references are debug labels only; don't count the wrapper
-        // itself as a candidate, just look through it.
-        if let DensityType::NamedDensityReference { argument, .. } = &*density {
-            return Self::count_candidates(*argument);
-        }
-
-        let mut count = if Self::is_target(&density) { 1 } else { 0 };
 
         match &*density {
             DensityType::Add { left, right }
             | DensityType::Multiply { left, right }
             | DensityType::Min { left, right }
             | DensityType::Max { left, right } => {
-                count += Self::count_candidates(*left);
-                count += Self::count_candidates(*right);
+                Self::has_any(*left, false) || Self::has_any(*right, false)
             }
 
             DensityType::Cache2d { argument }
+            | DensityType::FlatCache { argument }
+            | DensityType::NamedDensityReference { argument, .. }
             | DensityType::Squeeze { argument }
             | DensityType::Interpolated { argument }
-            | DensityType::FlatCache { argument }
             | DensityType::CacheOnce { argument }
             | DensityType::Abs { argument }
             | DensityType::Square { argument }
             | DensityType::Cube { argument }
             | DensityType::XNegative { argument, .. }
             | DensityType::Clamp { input: argument, .. }
-            | DensityType::WeirdScaledSampler { input: argument, .. } => {
-                count += Self::count_candidates(*argument);
-            }
+            | DensityType::WeirdScaledSampler { input: argument, .. } => Self::has_any(*argument, false),
 
             DensityType::RangeChoice {
                 input,
@@ -77,67 +50,47 @@ impl SimplifyNoise {
                 when_out_of_range,
                 ..
             } => {
-                count += Self::count_candidates(*input);
-                count += Self::count_candidates(*when_in_range);
-                count += Self::count_candidates(*when_out_of_range);
+                Self::has_any(*input, false)
+                    || Self::has_any(*when_in_range, false)
+                    || Self::has_any(*when_out_of_range, false)
             }
             DensityType::ShiftedNoise {
                 shift_x,
                 shift_y,
                 shift_z,
                 ..
-            } => {
-                count += Self::count_candidates(*shift_x);
-                count += Self::count_candidates(*shift_y);
-                count += Self::count_candidates(*shift_z);
-            }
+            } => Self::has_any(*shift_x, false) || Self::has_any(*shift_y, false) || Self::has_any(*shift_z, false),
 
-            DensityType::Spline { spline } => {
-                count += Self::count_spline_candidates(spline);
-            }
+            DensityType::Spline { spline } => Self::has_any_in_spline(spline),
 
             // Leaf nodes (Noise, EndIslands, Const, ShiftA, ShiftB, YClampedGradient, OldBlendedNoise)
-            _ => {}
+            _ => false,
         }
-
-        count
     }
 
-    /// Helper to count candidates hidden deeply inside spline point arrays.
-    fn count_spline_candidates<'m>(spline: Spline<'m>) -> u32 {
-        let mut count = Self::count_candidates(spline.coordinate);
-        for point in spline.spline_points {
-            if let SplineValue::Spline(inner_spline) = &point.value {
-                count += Self::count_spline_candidates(inner_spline);
-            }
+    /// Helper to look for candidates hidden deeply inside spline point arrays.
+    fn has_any_in_spline<'m>(spline: Spline<'m>) -> bool {
+        if Self::has_any(spline.coordinate, false) {
+            return true;
         }
-        count
+        spline.spline_points.iter().any(|point| match &point.value {
+            SplineValue::Spline(inner_spline) => Self::has_any_in_spline(inner_spline),
+            SplineValue::Const(_) => false,
+        })
     }
 
-    /// Walks the AST and rebuilds it, replacing exactly the `target_strike`-th
-    /// `ShiftedNoise`/`ShiftA`/`ShiftB` node with an equivalent plain `Noise`.
-    fn replace_nth<'m>(
+    /// Walks the AST and rebuilds it, stripping every non-root
+    /// `NamedDensityReference` node in a single pass.
+    fn strip_all<'m>(
         arena: &'m Bump,
         density: Density<'m>,
-        target_strike: u32,
-        current_strike: &mut u32,
+        is_root: bool,
         intern: &impl Fn(&'m Bump, DensityType<'m>) -> Density<'m>,
     ) -> Density<'m> {
-        if let DensityType::NamedDensityReference { name, argument } = &*density {
-            let new_arg = Self::replace_nth(arena, *argument, target_strike, current_strike, intern);
-            return if std::ptr::eq(&*new_arg, &**argument) {
-                density
-            } else {
-                intern(arena, DensityType::NamedDensityReference { name: *name, argument: new_arg })
-            };
-        }
-
-        if Self::is_target(&density) {
-            if *current_strike == target_strike {
-                *current_strike += 1;
-                return intern(arena, Self::to_simple_noise(&density));
+        if !is_root {
+            if let DensityType::NamedDensityReference { argument, .. } = &*density {
+                return Self::strip_all(arena, *argument, false, intern);
             }
-            *current_strike += 1;
         }
 
         match &*density {
@@ -145,8 +98,8 @@ impl SimplifyNoise {
             | DensityType::Multiply { left, right }
             | DensityType::Min { left, right }
             | DensityType::Max { left, right } => {
-                let new_left = Self::replace_nth(arena, *left, target_strike, current_strike, intern);
-                let new_right = Self::replace_nth(arena, *right, target_strike, current_strike, intern);
+                let new_left = Self::strip_all(arena, *left, false, intern);
+                let new_right = Self::strip_all(arena, *right, false, intern);
 
                 if std::ptr::eq(&*new_left, &**left) && std::ptr::eq(&*new_right, &**right) {
                     density
@@ -162,23 +115,32 @@ impl SimplifyNoise {
                 }
             }
 
+            DensityType::NamedDensityReference { name, argument } => {
+                let new_arg = Self::strip_all(arena, *argument, false, intern);
+                if std::ptr::eq(&*new_arg, &**argument) {
+                    density
+                } else {
+                    intern(arena, DensityType::NamedDensityReference { name: *name, argument: new_arg })
+                }
+            }
+
             DensityType::Cache2d { argument }
+            | DensityType::FlatCache { argument }
             | DensityType::Squeeze { argument }
             | DensityType::Interpolated { argument }
-            | DensityType::FlatCache { argument }
             | DensityType::CacheOnce { argument }
             | DensityType::Abs { argument }
             | DensityType::Square { argument }
             | DensityType::Cube { argument } => {
-                let new_arg = Self::replace_nth(arena, *argument, target_strike, current_strike, intern);
+                let new_arg = Self::strip_all(arena, *argument, false, intern);
                 if std::ptr::eq(&*new_arg, &**argument) {
                     density
                 } else {
                     let new_dt = match &*density {
                         DensityType::Cache2d { .. } => DensityType::Cache2d { argument: new_arg },
+                        DensityType::FlatCache { .. } => DensityType::FlatCache { argument: new_arg },
                         DensityType::Squeeze { .. } => DensityType::Squeeze { argument: new_arg },
                         DensityType::Interpolated { .. } => DensityType::Interpolated { argument: new_arg },
-                        DensityType::FlatCache { .. } => DensityType::FlatCache { argument: new_arg },
                         DensityType::CacheOnce { .. } => DensityType::CacheOnce { argument: new_arg },
                         DensityType::Abs { .. } => DensityType::Abs { argument: new_arg },
                         DensityType::Square { .. } => DensityType::Square { argument: new_arg },
@@ -190,15 +152,15 @@ impl SimplifyNoise {
             }
 
             DensityType::Clamp { input, min, max } => {
-                let new_input = Self::replace_nth(arena, *input, target_strike, current_strike, intern);
+                let new_input = Self::strip_all(arena, *input, false, intern);
                 if std::ptr::eq(&*new_input, &**input) { density } else { intern(arena, DensityType::Clamp { input: new_input, min: *min, max: *max }) }
             }
             DensityType::XNegative { argument, neg_x_multiplier } => {
-                let new_arg = Self::replace_nth(arena, *argument, target_strike, current_strike, intern);
+                let new_arg = Self::strip_all(arena, *argument, false, intern);
                 if std::ptr::eq(&*new_arg, &**argument) { density } else { intern(arena, DensityType::XNegative { argument: new_arg, neg_x_multiplier: *neg_x_multiplier }) }
             }
             DensityType::WeirdScaledSampler { input, noise_name, noise_to_sample, rarity_value_mapper } => {
-                let new_input = Self::replace_nth(arena, *input, target_strike, current_strike, intern);
+                let new_input = Self::strip_all(arena, *input, false, intern);
                 if std::ptr::eq(&*new_input, &**input) {
                     density
                 } else {
@@ -209,9 +171,9 @@ impl SimplifyNoise {
             }
 
             DensityType::RangeChoice { input, min_inclusive, max_exclusive, when_in_range, when_out_of_range } => {
-                let new_input = Self::replace_nth(arena, *input, target_strike, current_strike, intern);
-                let new_in = Self::replace_nth(arena, *when_in_range, target_strike, current_strike, intern);
-                let new_out = Self::replace_nth(arena, *when_out_of_range, target_strike, current_strike, intern);
+                let new_input = Self::strip_all(arena, *input, false, intern);
+                let new_in = Self::strip_all(arena, *when_in_range, false, intern);
+                let new_out = Self::strip_all(arena, *when_out_of_range, false, intern);
 
                 if std::ptr::eq(&*new_input, &**input) && std::ptr::eq(&*new_in, &**when_in_range) && std::ptr::eq(&*new_out, &**when_out_of_range) {
                     density
@@ -220,9 +182,9 @@ impl SimplifyNoise {
                 }
             }
             DensityType::ShiftedNoise { name, noise, shift_x, shift_y, shift_z, xz_scale, y_scale } => {
-                let new_x = Self::replace_nth(arena, *shift_x, target_strike, current_strike, intern);
-                let new_y = Self::replace_nth(arena, *shift_y, target_strike, current_strike, intern);
-                let new_z = Self::replace_nth(arena, *shift_z, target_strike, current_strike, intern);
+                let new_x = Self::strip_all(arena, *shift_x, false, intern);
+                let new_y = Self::strip_all(arena, *shift_y, false, intern);
+                let new_z = Self::strip_all(arena, *shift_z, false, intern);
 
                 if std::ptr::eq(&*new_x, &**shift_x) && std::ptr::eq(&*new_y, &**shift_y) && std::ptr::eq(&*new_z, &**shift_z) {
                     density
@@ -232,7 +194,7 @@ impl SimplifyNoise {
             }
 
             DensityType::Spline { spline } => {
-                let new_spline = Self::replace_nth_spline(arena, *spline, target_strike, current_strike, intern);
+                let new_spline = Self::strip_all_spline(arena, *spline, intern);
                 if std::ptr::eq(&*new_spline, &**spline) {
                     density
                 } else {
@@ -245,21 +207,19 @@ impl SimplifyNoise {
     }
 
     /// Helper to rebuild inner splines and their arrays without leaking memory.
-    fn replace_nth_spline<'m>(
+    fn strip_all_spline<'m>(
         arena: &'m Bump,
         spline: Spline<'m>,
-        target_strike: u32,
-        current_strike: &mut u32,
         intern: &impl Fn(&'m Bump, DensityType<'m>) -> Density<'m>,
     ) -> Spline<'m> {
-        let new_coord = Self::replace_nth(arena, spline.coordinate, target_strike, current_strike, intern);
+        let new_coord = Self::strip_all(arena, spline.coordinate, false, intern);
 
         let mut points_changed = false;
         let mut new_points = Vec::new();
 
         for (i, pt) in spline.spline_points.iter().enumerate() {
             if let SplineValue::Spline(inner_s) = &pt.value {
-                let new_inner = Self::replace_nth_spline(arena, *inner_s, target_strike, current_strike, intern);
+                let new_inner = Self::strip_all_spline(arena, *inner_s, intern);
 
                 if !std::ptr::eq(&*new_inner, &**inner_s) {
                     if !points_changed {
@@ -289,9 +249,9 @@ impl SimplifyNoise {
     }
 }
 
-impl<'m> ShrinkMethod<'m> for SimplifyNoise {
+impl<'m> ShrinkMethod<'m> for RemoveNamedReferences {
     fn name(&self) -> &str {
-        "simplify_noise"
+        "remove_named_references"
     }
 
     fn can_shrink(&mut self, remaining_strikes: u32, source: DensitySource) -> (bool, u32) {
@@ -299,8 +259,10 @@ impl<'m> ShrinkMethod<'m> for SimplifyNoise {
             return (false, 0);
         }
 
+        // There's only ever one possible action: strip every non-root
+        // reference at once.
         let root_density = *source.get_density();
-        let candidate_count = Self::count_candidates(root_density);
+        let candidate_count = if Self::has_any(root_density, true) { 1 } else { 0 };
 
         if remaining_strikes < candidate_count {
             (true, remaining_strikes)
@@ -310,22 +272,21 @@ impl<'m> ShrinkMethod<'m> for SimplifyNoise {
         }
     }
 
-    fn perform_shrink(&mut self, arena: &'m Bump, remaining_strikes: u32, source: DensitySource<'m>) -> DensitySource<'m> {
+    fn perform_shrink(&mut self, arena: &'m Bump, _remaining_strikes: u32, source: DensitySource<'m>) -> DensitySource<'m> {
         let intern = |arena: &'m Bump, density_type: DensityType<'m>| -> Density<'m> { arena.alloc(density_type) };
 
         match source {
             DensitySource::MultiSamplingDensity { density, dimensions } => {
-                let mut current_strike = 0;
-                let new_density = Self::replace_nth(arena, density, remaining_strikes, &mut current_strike, &intern);
+                let new_density = Self::strip_all(arena, density, true, &intern);
                 DensitySource::MultiSamplingDensity { density: new_density, dimensions }
             }
             DensitySource::SingleSamplingDensity { density } => {
-                let mut current_strike = 0;
-                let new_density = Self::replace_nth(arena, density, remaining_strikes, &mut current_strike, &intern);
+                let new_density = Self::strip_all(arena, density, true, &intern);
                 DensitySource::SingleSamplingDensity { density: new_density }
             }
         }
     }
+
     fn reenable(&mut self) {
         self.exhausted = false;
     }

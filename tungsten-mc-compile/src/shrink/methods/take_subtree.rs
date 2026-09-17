@@ -10,7 +10,51 @@ pub struct TakeSubtree {
     pub exhausted: bool,
 }
 
+enum VitalPreservation {
+    Cache2d,
+    FlatCache,
+    NamedDensityReference(String),
+}
+
 impl TakeSubtree {
+    fn unwrap_vital<'m>(density: Density<'m>) -> Density<'m> {
+        Self::preserve_vital(density).1
+    }
+
+    fn preserve_vital<'m>(density: Density<'m>) -> (Vec<VitalPreservation>, Density<'m>) {
+        match &*density {
+            DensityType::Cache2d { argument } => {
+                let (mut vitals, base) = Self::preserve_vital(*argument);
+                vitals.insert(0, VitalPreservation::Cache2d);
+                (vitals, base)
+            },
+
+            DensityType::FlatCache { argument } => {
+                let (mut vitals, base) = Self::preserve_vital(*argument);
+                vitals.insert(0, VitalPreservation::FlatCache);
+                (vitals, base)
+            },
+            DensityType::NamedDensityReference { name, argument } => {
+                let (mut vitals, base) = Self::preserve_vital(*argument);
+                vitals.insert(0, VitalPreservation::NamedDensityReference((*name).clone()));
+                (vitals, base)
+            },
+            density => (vec![], density),
+        }
+    }
+
+    fn reconstruct_vital<'m>(arena: &'m Bump, vitals: Vec<VitalPreservation>, base: Density<'m>) -> Density<'m> {
+        let mut density = base;
+        for vital in vitals.into_iter().rev() {
+            density = match vital {
+                VitalPreservation::Cache2d => arena.alloc(DensityType::Cache2d { argument: density }),
+                VitalPreservation::FlatCache => arena.alloc(DensityType::FlatCache { argument: density }),
+                VitalPreservation::NamedDensityReference(name) => arena.alloc(DensityType::NamedDensityReference { name: arena.alloc(name), argument: density }),
+            };
+        }
+        density
+    }
+
     /// Extracts only the immediate child densities from the root node.
     fn get_immediate_children<'m>(density: Density<'m>) -> Vec<Density<'m>> {
         match &*density {
@@ -27,7 +71,6 @@ impl TakeSubtree {
             | DensityType::Abs { argument }
             | DensityType::Square { argument }
             | DensityType::Cube { argument }
-            | DensityType::NamedDensityReference { argument, .. }
             | DensityType::XNegative { argument, .. }
             | DensityType::Clamp { input: argument, .. }
             | DensityType::WeirdScaledSampler { input: argument, .. } => vec![*argument],
@@ -68,7 +111,10 @@ impl<'m> ShrinkMethod<'m> for TakeSubtree {
             DensitySource::SingleSamplingDensity { density } => density,
         };
 
-        let child_count = Self::get_immediate_children(root_density).len() as u32;
+
+        let density = Self::unwrap_vital(root_density);
+
+        let child_count = Self::get_immediate_children(density).len() as u32;
 
         if remaining_strikes < child_count {
             (true, remaining_strikes)
@@ -80,7 +126,7 @@ impl<'m> ShrinkMethod<'m> for TakeSubtree {
 
     fn perform_shrink(
         &mut self,
-        _arena: &'m Bump,
+        arena: &'m Bump,
         remaining_strikes: u32,
         source: DensitySource<'m>,
     ) -> DensitySource<'m> {
@@ -89,10 +135,13 @@ impl<'m> ShrinkMethod<'m> for TakeSubtree {
             DensitySource::SingleSamplingDensity { density } => (density, None),
         };
 
-        let mut children = Self::get_immediate_children(root_density);
+        let (vital,density) = Self::preserve_vital(root_density);
+
+        let mut children = Self::get_immediate_children(density);
         
         // Extract the exact child mapped to the current strike index
         let selected_child = children.remove(remaining_strikes as usize);
+        let selected_child = Self::reconstruct_vital(arena, vital, selected_child);
 
         match dimensions {
             Some(dim) => DensitySource::MultiSamplingDensity {
@@ -103,5 +152,9 @@ impl<'m> ShrinkMethod<'m> for TakeSubtree {
                 density: selected_child,
             },
         }
+    }
+
+    fn reenable(&mut self) {
+        self.exhausted = false;
     }
 }

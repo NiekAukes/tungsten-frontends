@@ -66,21 +66,63 @@ __host__ __device__ inline double3 operator+(double3 a, int3 b) {
 //     return make_double3(a.x - b.x, a.y - b.y, a.z - b.z);
 // }
 
-// __host__ __device__ inline double3 operator-(double3 a, float b) {
+// __host__ __device__ inline double3 operator-(double3 a, double b) {
 //     return make_double3(a.x - b, a.y - b, a.z - b);
 // }
 
-// __host__ __device__ inline double3 operator+(double3 a, float b) {
+// __host__ __device__ inline double3 operator+(double3 a, double b) {
 //     return make_double3(a.x + b, a.y + b, a.z + b);
 // }
 
-// __host__ __device__ inline double3 operator/(double3 a, float b) {
+// __host__ __device__ inline double3 operator/(double3 a, double b) {
 //     return make_double3(a.x / b, a.y / b, a.z / b);
 // }
+
+__host__ __device__ inline double2 operator-(double2 a, double2 b) {
+    return make_double2(a.x - b.y, a.y - b.y);
+}
+__host__ __device__ inline double2 operator*(double2 a, double b) {
+    return make_double2(a.x * b, a.y * b);
+}
+
+__host__ __device__ inline double2 operator+(double2 a, double b) {
+    return make_double2(a.x + b, a.y + b);
+}
+__host__ __device__ inline double2 operator+(double2 a, double2 b) {
+    return make_double2(a.x + b.x, a.y + b.y);
+}
+
+__host__ __device__ inline double4 operator*(double4 a, double b) {
+    return make_double4(a.x * b, a.y * b, a.z * b, a.w * b);
+}
+__host__ __device__ inline double4 operator-(double4 a, double4 b) {
+    return make_double4(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w);
+}
+__host__ __device__ inline double4 operator+(double4 a, double4 b) {
+    return make_double4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w);
+}
 
 template<typename T, typename T2, typename T3>
 __device__ T clamp(T value, T2 min_val, T3 max_val) {
     return value < min_val ? min_val : (value > max_val ? max_val : value);
+}
+
+
+inline __device__ __host__ double lerp(double a, double b, double t)
+{
+    return a + t*(b-a);
+}
+inline __device__ __host__ double2 lerp(double2 a, double2 b, double t)
+{
+    return a + (b-a)*t;
+}
+inline __device__ __host__ double3 lerp(double3 a, double3 b, double t)
+{
+    return a + (b-a)*t;
+}
+inline __device__ __host__ double4 lerp(double4 a, double4 b, double t)
+{
+    return a + (b-a)*t;
 }
 
 // Cubic Hermite spline interpolation. Matches hermite() in utilsf64.rs.
@@ -175,14 +217,14 @@ __device__ double3 perlin_fade_vec(double3 t) {
     return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
 }
 
-__device__ float perlin_grad_opt(int hash, float x, float y, float z) {
+__device__ double perlin_grad_opt(int hash, double x, double y, double z) {
     // Single lookup of a double3 is faster than 3 lookups of float
     unsigned int h = hash & 15;
     float4 g = GRADS[h];
     return g.x * x + g.y * y + g.z * z;
 }
 
-__device__ float perlin(double3 pos, const int8_t* _generator) {
+__device__ double perlin(double3 pos, const int8_t* _generator) {
     PerlinNoiseGenerator* generator = (PerlinNoiseGenerator*)_generator;
     double3 rpos = pos + make_double3(generator->origin_x, generator->origin_y, generator->origin_z);
     
@@ -201,22 +243,30 @@ __device__ float perlin(double3 pos, const int8_t* _generator) {
     int BA = __ldg(&p[B & 255]) + pi.z;
     int BB = __ldg(&p[(B + 1) & 255]) + pi.z;
 
-    float grad000 = perlin_grad_opt(__ldg(&p[AA & 255]),       f.x,        f.y,        f.z);
-    float grad100 = perlin_grad_opt(__ldg(&p[(AA + 1) & 255]), f.x,        f.y - 1.f,  f.z);
-    float grad010 = perlin_grad_opt(__ldg(&p[AB & 255]),       f.x,        f.y - 1.f,  f.z);
-    float grad110 = perlin_grad_opt(__ldg(&p[(AB + 1) & 255]), f.x - 1.f,  f.y - 1.f,  f.z);
-    float grad001 = perlin_grad_opt(__ldg(&p[BA & 255]),       f.x - 1.f,  f.y,        f.z - 1.f);
-    float grad101 = perlin_grad_opt(__ldg(&p[(BA + 1) & 255]), f.x,        f.y,        f.z - 1.f);
-    float grad011 = perlin_grad_opt(__ldg(&p[BB & 255]),       f.x - 1.f,  f.y - 1.f,  f.z - 1.f);
-    float grad111 = perlin_grad_opt(__ldg(&p[(BB + 1) & 255]), f.x - 1.f,  f.y - 1.f,  f.z - 1.f);
+    // double grad000 = perlin_grad_opt(__ldg(&p[AA & 255]),       f.x,        f.y,        f.z);
+    // double grad100 = perlin_grad_opt(__ldg(&p[(AA + 1) & 255]), f.x,        f.y - 1.f,  f.z);
+    // double grad010 = perlin_grad_opt(__ldg(&p[AB & 255]),       f.x,        f.y - 1.f,  f.z);
+    // double grad110 = perlin_grad_opt(__ldg(&p[(AB + 1) & 255]), f.x - 1.f,  f.y - 1.f,  f.z);
+    // double grad001 = perlin_grad_opt(__ldg(&p[BA & 255]),       f.x - 1.f,  f.y,        f.z - 1.f);
+    // double grad101 = perlin_grad_opt(__ldg(&p[(BA + 1) & 255]), f.x,        f.y,        f.z - 1.f);
+    // double grad011 = perlin_grad_opt(__ldg(&p[BB & 255]),       f.x - 1.f,  f.y - 1.f,  f.z - 1.f);
+    // double grad111 = perlin_grad_opt(__ldg(&p[(BB + 1) & 255]), f.x - 1.f,  f.y - 1.f,  f.z - 1.f);
+    double grad000 = perlin_grad_opt(__ldg(&p[AA & 255]),       f.x,       f.y,       f.z);
+    double grad100 = perlin_grad_opt(__ldg(&p[BA & 255]),       f.x - 1.0, f.y,       f.z);
+    double grad010 = perlin_grad_opt(__ldg(&p[AB & 255]),       f.x,       f.y - 1.0, f.z);
+    double grad110 = perlin_grad_opt(__ldg(&p[BB & 255]),       f.x - 1.0, f.y - 1.0, f.z);
+    double grad001 = perlin_grad_opt(__ldg(&p[(AA + 1) & 255]), f.x,       f.y,       f.z - 1.0);
+    double grad101 = perlin_grad_opt(__ldg(&p[(BA + 1) & 255]), f.x - 1.0, f.y,       f.z - 1.0);
+    double grad011 = perlin_grad_opt(__ldg(&p[(AB + 1) & 255]), f.x,       f.y - 1.0, f.z - 1.0);
+    double grad111 = perlin_grad_opt(__ldg(&p[(BB + 1) & 255]), f.x - 1.0, f.y - 1.0, f.z - 1.0);
     
 
-    float x0 = lerp(grad000, grad100, v.x);
-    float x1 = lerp(grad010, grad110, v.x);
-    float y0 = lerp(x0, x1, v.y);
-    float x2 = lerp(grad001, grad101, v.x);
-    float x3 = lerp(grad011, grad111, v.x);
-    float y1 = lerp(x2, x3, v.y);
+    double x0 = lerp(grad000, grad100, v.x);
+    double x1 = lerp(grad010, grad110, v.x);
+    double y0 = lerp(x0, x1, v.y);
+    double x2 = lerp(grad001, grad101, v.x);
+    double x3 = lerp(grad011, grad111, v.x);
+    double y1 = lerp(x2, x3, v.y);
     
     return lerp(y0, y1, v.z);
 }
@@ -441,33 +491,33 @@ __device__ unsigned int flat_z_zero_index(int3 pos, unsigned int size_x, unsigne
 // Biome column index: shifts x and z right by 2, clears y, then flat_y_zero_index with size_x=4.
 // Matches biome_column_index() in mathf64.rs.
 __device__ unsigned int biome_column_index(int3 pos) {
-    return flat_y_zero_index(make_int3(pos.x >> 2u, 0u, pos.z >> 2u), 4u, 0u);
+    return flat_y_zero_index(make_int3(pos.x >> 2u, 0u, pos.z >> 2u), 5u, 5u);
 }
 
-__device__ float old_blended_noise(
-    double3 rpos3,
-    float xz_scale,
-    float y_scale,
-    float xz_factor,
-    float y_factor,
-    float smear_scale_multiplier
-) {
-    return 0.0f;
-}
+// __device__ float old_blended_noise(
+//     double3 rpos3,
+//     double xz_scale,
+//     double y_scale,
+//     double xz_factor,
+//     double y_factor,
+//     double smear_scale_multiplier
+// ) {
+//     return 0.0f;
+// }
 
 __device__ __forceinline__ int perlin_map_(const PerlinNoiseGenerator* pns, int input) {
     return pns->perm[input & 255] & 255;
 }
 
-__device__ __forceinline__ float sample_perlin_section_scaled_(
+__device__ __forceinline__ double sample_perlin_section_scaled_(
     const PerlinNoiseGenerator* pns,
     int section_x,
     int section_y,
     int section_z,
-    float x,
-    float y,
-    float z,
-    float fade_y
+    double x,
+    double y,
+    double z,
+    double fade_y
 ) {
     int i = perlin_map_(pns, section_x);
     int j = perlin_map_(pns, section_x + 1);
@@ -476,35 +526,35 @@ __device__ __forceinline__ float sample_perlin_section_scaled_(
     int m = perlin_map_(pns, j + section_y);
     int n = perlin_map_(pns, j + section_y + 1);
 
-    float d = perlin_grad_opt(perlin_map_(pns, k + section_z), x, y, z);
-    float e = perlin_grad_opt(perlin_map_(pns, m + section_z), x - 1.0f, y, z);
-    float f = perlin_grad_opt(perlin_map_(pns, l + section_z), x, y - 1.0f, z);
-    float g = perlin_grad_opt(perlin_map_(pns, n + section_z), x - 1.0f, y - 1.0f, z);
-    float h = perlin_grad_opt(perlin_map_(pns, k + section_z + 1), x, y, z - 1.0f);
-    float o = perlin_grad_opt(perlin_map_(pns, m + section_z + 1), x - 1.0f, y, z - 1.0f);
-    float p = perlin_grad_opt(perlin_map_(pns, l + section_z + 1), x, y - 1.0f, z - 1.0f);
-    float q = perlin_grad_opt(perlin_map_(pns, n + section_z + 1), x - 1.0f, y - 1.0f, z - 1.0f);
+    double d = perlin_grad_opt(perlin_map_(pns, k + section_z), x, y, z);
+    double e = perlin_grad_opt(perlin_map_(pns, m + section_z), x - 1.0, y, z);
+    double f = perlin_grad_opt(perlin_map_(pns, l + section_z), x, y - 1.0, z);
+    double g = perlin_grad_opt(perlin_map_(pns, n + section_z), x - 1.0, y - 1.0, z);
+    double h = perlin_grad_opt(perlin_map_(pns, k + section_z + 1), x, y, z - 1.0);
+    double o = perlin_grad_opt(perlin_map_(pns, m + section_z + 1), x - 1.0, y, z - 1.0);
+    double p = perlin_grad_opt(perlin_map_(pns, l + section_z + 1), x, y - 1.0, z - 1.0);
+    double q = perlin_grad_opt(perlin_map_(pns, n + section_z + 1), x - 1.0, y - 1.0, z - 1.0);
 
-    float r = perlin_fade_(x);
-    float s = perlin_fade_(fade_y);
-    float t = perlin_fade_(z);
+    double r = perlin_fade_(x);
+    double s = perlin_fade_(fade_y);
+    double t = perlin_fade_(z);
 
-    float x00 = lerp(d, e, r);
-    float x10 = lerp(f, g, r);
-    float y0 = lerp(x00, x10, s);
-    float x01 = lerp(h, o, r);
-    float x11 = lerp(p, q, r);
-    float y1 = lerp(x01, x11, s);
+    double x00 = lerp(d, e, r);
+    double x10 = lerp(f, g, r);
+    double y0 = lerp(x00, x10, s);
+    double x01 = lerp(h, o, r);
+    double x11 = lerp(p, q, r);
+    double y1 = lerp(x01, x11, s);
     return lerp(y0, y1, t);
 }
 
-__device__ __forceinline__ float sample_perlin_scaled_(
+__device__ __forceinline__ double sample_perlin_scaled_(
     const PerlinNoiseGenerator* pns,
-    float x,
-    float y,
-    float z,
-    float y_scale,
-    float y_max
+    double x,
+    double y,
+    double z,
+    double y_scale,
+    double y_max
 ) {
     x += pns->origin_x;
     y += pns->origin_y;
@@ -514,60 +564,60 @@ __device__ __forceinline__ float sample_perlin_scaled_(
     int j = (int)floorf(y);
     int k = (int)floorf(z);
 
-    float g = x - (float)i;
-    float h = y - (float)j;
-    float l = z - (float)k;
+    double g = x - (double)i;
+    double h = y - (double)j;
+    double l = z - (double)k;
 
-    float n = 0.0f;
+    double n = 0.0f;
     if (y_scale != 0.0f) {
-        float m = (y_max >= 0.0f && y_max < h) ? y_max : h;
+        double m = (y_max >= 0.0f && y_max < h) ? y_max : h;
         n = floorf(m / y_scale + 1.0e-7f) * y_scale;
     }
 
     return sample_perlin_section_scaled_(pns, i, j, k, g, h - n, l, h);
 }
 
-const float WRAP = 33554432.0f; // 3.3554432e7
-__device__ __forceinline__ float maintain_precision_(float value) {
+const double WRAP = 33554432.0f; // 3.3554432e7
+__device__ __forceinline__ double maintain_precision_(double value) {
     return value - floorf(value / WRAP + 0.5f) * WRAP;
 }
 
-__device__ __forceinline__ float clamped_lerp_(float start, float end, float delta) {
-    float d = clamp(delta, 0.0f, 1.0f);
+__device__ __forceinline__ double clamped_lerp_(double start, double end, double delta) {
+    double d = clamp(delta, 0.0f, 1.0f);
     return start + d * (end - start);
 }
 
-__device__ float base3d_noise(
+__device__ double base3d_noise(
     double3 p,
     const int8_t* sampler_blob,
-    float smear_scale_multiplier,
-    float xz_factor,
-    float scaled_xz_scale,
-    float y_factor,
-    float scaled_y_scale
+    double smear_scale_multiplier,
+    double xz_factor,
+    double scaled_xz_scale,
+    double y_factor,
+    double scaled_y_scale
 ) {
     if (sampler_blob == nullptr) {
         return 0.0f;
     }
 
     const InterpolatedNoiseSamplerGPU* sampler = (const InterpolatedNoiseSamplerGPU*)sampler_blob;
-    const float BASE_3D_XZ_SCALE = 684.412f;
+    const double BASE_3D_XZ_SCALE = 684.412f;
 
-    float d = p.x * scaled_xz_scale * BASE_3D_XZ_SCALE;
-    float e = p.y * scaled_y_scale * BASE_3D_XZ_SCALE;
-    float f = p.z * scaled_xz_scale * BASE_3D_XZ_SCALE;
+    double d = p.x * scaled_xz_scale * BASE_3D_XZ_SCALE;
+    double e = p.y * scaled_y_scale * BASE_3D_XZ_SCALE;
+    double f = p.z * scaled_xz_scale * BASE_3D_XZ_SCALE;
 
-    float g = d / xz_factor;
-    float h = e / y_factor;
-    float iz = f / xz_factor;
-    float j = scaled_y_scale * BASE_3D_XZ_SCALE * smear_scale_multiplier;
-    float k = j / y_factor;
+    double g = d / xz_factor;
+    double h = e / y_factor;
+    double iz = f / xz_factor;
+    double j = scaled_y_scale * BASE_3D_XZ_SCALE * smear_scale_multiplier;
+    double k = j / y_factor;
 
-    float l = 0.0f;
-    float m = 0.0f;
-    float n = 0.0f;
-    float o = 1.0f;
-    float inv_o = 1.0f;
+    double l = 0.0f;
+    double m = 0.0f;
+    double n = 0.0f;
+    double o = 1.0f;
+    double inv_o = 1.0f;
 
     for (int octave = 7; octave >= 0; --octave) {
         n += sample_perlin_scaled_(
@@ -582,16 +632,16 @@ __device__ float base3d_noise(
         inv_o *= 2.0f;
     }
 
-    float q = (n * 0.1f + 1.0f) * 0.5f;
+    double q = (n * 0.1f + 1.0f) * 0.5f;
     bool bl2 = q >= 1.0f;
     bool bl3 = q <= 0.0f;
     o = 1.0f;
 
     for (int octave = 15; octave >= 0; --octave) {
-        float s = maintain_precision_(d * o);
-        float t = maintain_precision_(e * o);
-        float u = maintain_precision_(f * o);
-        float v = j * o;
+        double s = maintain_precision_(d * o);
+        double t = maintain_precision_(e * o);
+        double u = maintain_precision_(f * o);
+        double v = j * o;
 
         if (!bl2) {
             l += sample_perlin_scaled_(&sampler->lower[octave], s, t, u, v, e * o) / o;
@@ -803,10 +853,10 @@ pub fn advanced_hermite<const N: usize>(
 */
 
 template <std::size_t N>
-__device__ __forceinline__ float advanced_hermite(
-    // const float* spline_locations,
-    // const float* spline_values,
-    // const float* spline_derivatives,
+__device__ __forceinline__ double advanced_hermite(
+    // const double* spline_locations,
+    // const double* spline_values,
+    // const double* spline_derivatives,
     const float (&spline_locations)[N],
     const float (&spline_values)[N],
     const float (&spline_derivatives)[N],
@@ -912,9 +962,9 @@ void create_perlin_noise_sampler(PerlinNoiseGenerator* out, Xoroshiro128PlusPlus
 // ident_lo/hi and subident_lo/hi are precomputed via MD5(string) at codegen time.
 static void make_perm_table(
     PerlinNoiseGenerator* out, int64_t world_seed,
-    uint64_t ident_lo,    uint64_t ident_hi,
+    int64_t ident_lo,    int64_t ident_hi,
     int64_t  subident_index,
-    uint64_t subident_lo, uint64_t subident_hi
+    int64_t subident_lo, int64_t subident_hi
 ) {
     PerlinNoiseGenerator* table = out;
     Xoroshiro128PlusPlusRandom rng_base(create_xoroshiro_seed(world_seed));

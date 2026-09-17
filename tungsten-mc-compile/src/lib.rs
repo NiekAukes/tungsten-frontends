@@ -29,8 +29,8 @@
 use std::path::PathBuf;
 
 use bumpalo::Bump;
-pub use tungsten_wg::CompilerConfig;
-use tungsten_wg::{compile, CompiledOutput};
+pub use tungsten_wg::{CompiledOutput, CompilerConfig};
+use tungsten_wg::compile;
 
 use crate::parse::MinecraftData;
 

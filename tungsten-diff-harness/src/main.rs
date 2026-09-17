@@ -3,6 +3,7 @@ mod ffi;
 mod generate;
 mod oracle;
 mod paths;
+mod reexport;
 mod rust_build;
 
 use clap::Parser;
@@ -17,7 +18,7 @@ fn main() {
     } else {
         None
     };
-    generate::generate_from_source(&config.generated_dir, path.clone(), cli.chunk_size);
+    generate::generate_from_source(&config, path, cli.chunk_size);
     println!("Compiling Rust and CUDA pipelines into shared libraries...");
     rust_build::build_rust_cdylib(&config);
     cuda_build::build_cuda_shared_lib(&config);

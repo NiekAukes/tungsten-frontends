@@ -20,6 +20,12 @@ impl ReplaceWithConstant {
             return 0; // Skip counting this node and its children (it has none).
         }
 
+        // Named references are debug labels only; don't count the wrapper
+        // itself as a candidate, just look through it.
+        if let DensityType::NamedDensityReference { argument, .. } = &*density {
+            return Self::count_candidates(*argument);
+        }
+
         let mut count = 1; // 1 for the current node itself
 
         match &*density {
@@ -41,7 +47,6 @@ impl ReplaceWithConstant {
             | DensityType::Abs { argument }
             | DensityType::Square { argument }
             | DensityType::Cube { argument }
-            | DensityType::NamedDensityReference { argument, .. }
             | DensityType::XNegative { argument, .. }
             | DensityType::Clamp { input: argument, .. }
             | DensityType::WeirdScaledSampler { input: argument, .. } => {
@@ -103,6 +108,17 @@ impl ReplaceWithConstant {
     ) -> Density<'m> {
         if Self::is_zero(density) {
             return density;
+        }
+
+        // Named references are debug labels only; skip the wrapper itself
+        // and recurse straight into its argument.
+        if let DensityType::NamedDensityReference { name, argument } = &*density {
+            let new_arg = Self::replace_nth(arena, *argument, target_strike, current_strike, intern);
+            return if std::ptr::eq(&*new_arg, &**argument) {
+                density
+            } else {
+                intern(arena, DensityType::NamedDensityReference { name: *name, argument: new_arg })
+            };
         }
 
         if *current_strike == target_strike {
@@ -171,10 +187,6 @@ impl ReplaceWithConstant {
             DensityType::XNegative { argument, neg_x_multiplier } => {
                 let new_arg = Self::replace_nth(arena, *argument, target_strike, current_strike, intern);
                 if std::ptr::eq(&*new_arg, &**argument) { density } else { intern(arena, DensityType::XNegative { argument: new_arg, neg_x_multiplier: *neg_x_multiplier }) }
-            }
-            DensityType::NamedDensityReference { name, argument } => {
-                let new_arg = Self::replace_nth(arena, *argument, target_strike, current_strike, intern);
-                if std::ptr::eq(&*new_arg, &**argument) { density } else { intern(arena, DensityType::NamedDensityReference { name: *name, argument: new_arg }) }
             }
             DensityType::WeirdScaledSampler { input, noise_name, noise_to_sample, rarity_value_mapper } => {
                 let new_input = Self::replace_nth(arena, *input, target_strike, current_strike, intern);
@@ -336,5 +348,9 @@ impl<'m> ShrinkMethod<'m> for ReplaceWithConstant {
                 density: new_density,
             },
         }
+    }
+
+    fn reenable(&mut self) {
+        self.exhausted = false;
     }
 }

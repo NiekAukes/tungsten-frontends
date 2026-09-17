@@ -14,3 +14,4 @@ clap = { version = "4.5", features = ["derive", "env"] }
 tungsten-mc-compile = { path = "../tungsten-mc-compile" }
 rand = "0.10.2"
 bumpalo = "3.19.0"
+serde_json = { version = "1.0.143", features = ["preserve_order"] }
