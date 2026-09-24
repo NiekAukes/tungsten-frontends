@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <memory>
+#include <assert.h>
 
 
 __host__ __device__ inline double3 operator*(int3 a, double3 b) {
@@ -173,30 +174,20 @@ __device__ int perlin_perm_(const int* perm, int index) {
     return perm[index & 255] & 255;
 }
 
-__constant__ float GRADX[16] = { 1.f, -1.f,  1.f, -1.f,  1.f, -1.f,  1.f, -1.f,  0.f,  0.f,  0.f,  0.f,  1.f,  0.f, -1.f,  0.f };
-__constant__ float GRADY[16] = { 1.f,  1.f, -1.f, -1.f,  0.f,  0.f,  0.f,  0.f,  1.f, -1.f,  1.f, -1.f,  1.f, -1.f,  1.f, -1.f };
-__constant__ float GRADZ[16] = { 0.f,  0.f,  0.f,  0.f,  1.f,  1.f, -1.f, -1.f,  1.f,  1.f, -1.f, -1.f,  0.f,  1.f,  0.f, -1.f };
-
-// Dot product with one of Minecraft's 16 gradient vectors (GRAD3 in perlin.rs).
-__device__ float perlin_grad_(int hash, float x, float y, float z) {
-    unsigned int h = hash & 15;
-    return GRADX[h] * x + GRADY[h] * y + GRADZ[h] * z;
-}
-
 // Quintic fade curve: 6t^5 - 15t^4 + 10t^3
-__device__ float perlin_fade_(float t) {
-    return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
+__device__ double perlin_fade_(double t) {
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
 }
 
-__device__ float perlin_lerp_(float delta, float a, float b) {
-    return a + delta * (b - a);
+__device__ double perlin_lerp_(double delta, double start, double end) {
+    return start + delta * (end - start);
 }
 
 struct PerlinNoiseGenerator {
     int perm[256];
-    float origin_x;
-    float origin_y;
-    float origin_z;
+    double origin_x;
+    double origin_y;
+    double origin_z;
 };
 
 struct InterpolatedNoiseSamplerGPU {
@@ -205,11 +196,11 @@ struct InterpolatedNoiseSamplerGPU {
     PerlinNoiseGenerator interpolation[8];
 };
 
-__constant__ float4 GRADS[16] = {
-    { 1.f, 1.f, 0.f, 0.f },  { -1.f, 1.f, 0.f, 0.f }, { 1.f, -1.f, 0.f, 0.f }, { -1.f, -1.f, 0.f, 0.f },
-    { 1.f, 0.f, 1.f, 0.f },  { -1.f, 0.f, 1.f, 0.f }, { 1.f, 0.f, -1.f, 0.f }, { -1.f, 0.f, -1.f, 0.f },
-    { 0.f, 1.f, 1.f, 0.f },  { 0.f, -1.f, 1.f, 0.f }, { 0.f, 1.f, -1.f, 0.f }, { 0.f, -1.f, -1.f, 0.f },
-    { 1.f, 1.f, 0.f, 0.f },  { 0.f, -1.f, 1.f, 0.f }, { -1.f, 1.f, 0.f, 0.f }, { 0.f, -1.f, -1.f, 0.f }
+__constant__ double4 GRADS[16] = {
+    { 1., 1., 0., 0. },  { -1.0, 1.0, 0.0, 0.0 }, { 1.0, -1.0, 0.0, 0.0 }, { -1.0, -1.0, 0.0, 0.0 },
+    { 1., 0.0, 1.0, 0.0 },  { -1.0, 0.0, 1.0, 0.0 }, { 1.0, 0.0, -1.0, 0.0 }, { -1.0, 0.0, -1.0, 0.0 },
+    { 0.0, 1.0, 1.0, 0.0 },  { 0.0, -1.0, 1.0, 0.0 }, { 0.0, 1.0, -1.0, 0.0 }, { 0.0, -1.0, -1.0, 0.0 },
+    { 1.0, 1.0, 0.0, 0.0 },  { 0.0, -1.0, 1.0, 0.0 }, { -1.0, 1.0, 0.0, 0.0 }, { 0.0, -1.0, -1.0, 0.0 },
 };
 
 __device__ double3 perlin_fade_vec(double3 t) {
@@ -220,7 +211,7 @@ __device__ double3 perlin_fade_vec(double3 t) {
 __device__ double perlin_grad_opt(int hash, double x, double y, double z) {
     // Single lookup of a double3 is faster than 3 lookups of float
     unsigned int h = hash & 15;
-    float4 g = GRADS[h];
+    double4 g = GRADS[h];
     return g.x * x + g.y * y + g.z * z;
 }
 
@@ -270,6 +261,7 @@ __device__ double perlin(double3 pos, const int8_t* _generator) {
     
     return lerp(y0, y1, v.z);
 }
+
 
 // Maps a cave value to a scale factor. Matches scale_caves() in utilsf64.rs.
 // __device__ float scale_caves(float value) {
@@ -863,6 +855,7 @@ __device__ __forceinline__ double advanced_hermite(
     float coordinate,
     int index
 ) {
+    assert(index >= 0);
     if (index == 0 || index >= N) {
         // extrapolate
         int clamped_index = min(index, (int)N - 1);
@@ -940,9 +933,9 @@ static void create_legacy(PerlinNoiseGenerator (&samplers)[N], Xoroshiro128PlusP
 void create_perlin_noise_sampler(PerlinNoiseGenerator* out, Xoroshiro128PlusPlusRandom* rng) {
     if (!out || !rng) return;
     
-    out->origin_x = static_cast<float>(rng->next_double() * 256.0);
-    out->origin_y = static_cast<float>(rng->next_double() * 256.0);
-    out->origin_z = static_cast<float>(rng->next_double() * 256.0);
+    out->origin_x = rng->next_double() * 256.0;
+    out->origin_y = rng->next_double() * 256.0;
+    out->origin_z = rng->next_double() * 256.0;
 
     // Initialize default permutation table
     for (int i = 0; i < 256; i++) {

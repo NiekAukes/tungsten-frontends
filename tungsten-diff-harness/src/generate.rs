@@ -41,10 +41,18 @@ fn write_generated(generated_dir: &Path, output: CompiledOutput) {
 /// shrink-and-test loop that repeatedly regenerates, rebuilds, and reruns
 /// both pipelines against smaller and smaller candidate `final_density`
 /// trees, keeping only the reductions that still reproduce the mismatch.
+/// Passing `single_run = true` skips this shrink loop entirely: the source
+/// is compiled once and control returns to the caller to build and run the
+/// pipelines a single time.
 ///
 /// `helpers.cu` is not produced by this step; it must be supplied separately
 /// alongside the generated CUDA sources.
-pub fn generate_from_source(config: &HarnessConfig, source_dir: Option<&Path>, chunk_size: usize) {
+pub fn generate_from_source(
+    config: &HarnessConfig,
+    source_dir: Option<&Path>,
+    chunk_size: usize,
+    single_run: bool,
+) {
     let generated_dir = &config.generated_dir;
     fs::create_dir_all(generated_dir).expect("failed to create generated_dir");
 
@@ -66,8 +74,15 @@ pub fn generate_from_source(config: &HarnessConfig, source_dir: Option<&Path>, c
         generated_dir.display()
     );
     let arena = bumpalo::Bump::new();
-    let mut ast = tungsten_mc_compile::run_parse(&arena, &mc_config);
+    let ast = tungsten_mc_compile::run_parse(&arena, &mc_config);
 
+    if single_run {
+        let output = run_generation_from_ast(&mc_config.backend_config, &ast);
+        write_generated(generated_dir, output);
+        return;
+    }
+
+    let mut ast = ast;
     let initial_density = ast
         .noise_settings
         .get("minecraft:overworld")

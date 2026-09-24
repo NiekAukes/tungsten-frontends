@@ -46,7 +46,12 @@ pub fn pipelines_agree(result: &RunResult, epsilon: f64) -> bool {
 pub fn assert_pipelines_agree(result: &RunResult, epsilon: f64) {
     let mismatches = find_mismatches(result, epsilon);
 
+    let avg_rust = result.rust_output.iter().copied().sum::<f64>() / DIMS as f64;
+    let avg_cuda = result.cuda_output.iter().map(|&v| v as f64).sum::<f64>() / DIMS as f64;
     if mismatches.is_empty() {
+        println!("\tavg_rust = {avg_rust:.17}");
+        println!("\tavg_cuda = {avg_cuda:.17}");
+        println!("Pipelines agree within epsilon={epsilon:e}");
         return;
     }
 
@@ -58,7 +63,10 @@ pub fn assert_pipelines_agree(result: &RunResult, epsilon: f64) {
          First mismatch at flattened index {first_idx} (grid coord x={x}, y={y}, z={z}):\n\
          \trust = {first_rust:.17}\n\
          \tcuda = {first_cuda:.17}\n\
-         \tdiff = {diff:.17}",
+         \tdiff = {diff:.17}\n\n\
+         \tavg_rust = {avg_rust:.17}\n\
+         \tavg_cuda = {avg_cuda:.17}",
+         
         total = mismatches.len(),
         dims = DIMS,
         diff = (first_rust - first_cuda).abs(),

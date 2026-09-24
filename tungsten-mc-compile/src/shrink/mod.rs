@@ -58,6 +58,9 @@ impl<'m> Shrinker<'m> {
             Box::new(methods::SimplifyNoise {
                 exhausted: false,
             }),
+            Box::new(methods::SimplifySpline {
+                exhausted: false,
+            }),
             Box::new(methods::SimplifyNoiseParams {
                 exhausted: false,
             }),

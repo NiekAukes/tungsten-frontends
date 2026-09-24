@@ -103,7 +103,8 @@ fn run_with_args(args: Args) {
     let config = CompilerConfig::new()
         .with_rcl(true)
         .with_cuda(args.cuda) // Now respects the CLI flag
-        .rcl_module_names("density_function", "orchestration");
+        .rcl_module_names("density_function", "orchestration")
+        .with_wave_orchestration_graph(args.emit_intermediates);
 
     // 5. Run the Compiler Library
     println!("Compiling SPMT program across target backends...");
@@ -119,6 +120,12 @@ fn run_with_args(args: Args) {
         if !folder.as_os_str().is_empty() {
             std::fs::create_dir_all(folder).expect("Unable to create output directory");
         }
+    }
+
+    if let Some(wave_graph) = compiled_output.wave_orchestration_graph {
+        let wave_graph_path = args.output.join("wave_orchestration_graph").with_extension("dot");
+        std::fs::write(&wave_graph_path, wave_graph).expect("Unable to write wave orchestration graph");
+        println!("Generated wave orchestration graph at '{}'", wave_graph_path.display());
     }
 
     if args.rust || (!args.cuda && !args.rust) {

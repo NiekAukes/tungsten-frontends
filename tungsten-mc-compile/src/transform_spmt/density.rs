@@ -1,8 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    parse::model::{Density, DensityType, NormalNoise},
-    transform_spmt::{
+    parse::{density, model::{Density, DensityType, NormalNoise}}, transform_spmt::{
         BuilderState, anonvar, newvar,
         noise::{lower_normal_noise, lower_old_blended_noise},
         prefixvar,
@@ -79,6 +78,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 variables: Vec::new(),
                 helper_functions: Vec::new(),
                 constants: Vec::new(),
+                source_hash: 0,
             },
 
             function: None,
@@ -257,6 +257,14 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             position_scale,
             true,
         );
+        let hash = {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            permutation_name.hash(&mut hasher);
+            hasher.finish()
+        };
+
         let mut density_function = DensityFunction {
             body: function.body,
             canonical_name: function.canonical_name,
@@ -265,6 +273,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             variables: function.variables,
             helper_functions: vec![],
             constants: vec![],
+            source_hash: hash,
         };
 
         if density_function.canonical_name.is_none() {
@@ -276,6 +285,46 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
 
         let density_function_ref = DensityFunctionRef::new(self.arena.alloc(density_function));
         density_function_ref
+    }
+
+    pub fn lower_old_blended_noise_as_density(
+        &mut self,
+        density: Density<'a>
+    ) -> DensityFunctionRef<'m> {
+        // lower the old blended noise into a density function
+        let lower_function = &|builder: &mut Self, density: Density<'a>| {
+            let DensityType::OldBlendedNoise { 
+                smear_scale_multiplier, 
+                xz_factor, 
+                xz_scale, 
+                y_factor, 
+                y_scale } = *density else {
+                    panic!("Expected DensityType::OldBlendedNoise");
+                };
+            
+            let (expr, perm_table) = lower_old_blended_noise(
+                    builder.rpos3.clone(),
+                    smear_scale_multiplier,
+                    xz_factor,
+                    xz_scale,
+                    y_factor,
+                    y_scale,
+                );
+
+            builder.density_function.permutation_table_inputs.push(perm_table);
+            expr
+        };
+        // let mut density_function: DensityFunction<'m> = DensityFunction {
+        //     body: vec![Statement::Return(expr)],
+        //     canonical_name: Some("old_blended_noise".to_string()),
+        //     density_inputs: vec![],
+        //     permutation_table_inputs: vec![perm_table],
+        //     variables: vec![],
+        //     helper_functions: vec![],
+        //     constants: vec![],
+        // };
+
+        self._lower_density_shader_inner(density, Some("old_blended_noise".to_string()), lower_function)
     }
 
     pub fn lower_noise_and_mark(
@@ -542,6 +591,22 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
     }
 
     pub fn lower_density(&mut self, density: Density<'a>) -> Expression<'m> {
+        if let Some(cached) = self.get_function_cached_density_input(&density) {
+            return Expression::DensityVariable(cached, None);
+        }
+
+        if self.density_function.source_hash == 0 {
+            let hash = {
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+                let mut hasher = DefaultHasher::new();
+                density.hash(&mut hasher);
+                hasher.finish()
+            };
+
+            self.density_function.source_hash = hash;
+        }
+
         match *density {
             DensityType::Noise {
                 ref name,
@@ -1026,24 +1091,49 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 //self.lower_density(argument)
             }
             DensityType::OldBlendedNoise {
-                smear_scale_multiplier,
-                xz_factor,
-                xz_scale,
-                y_factor,
-                y_scale,
+                ..
             } => {
-                let (expr, perm_table) = lower_old_blended_noise(
-                    self.rpos3.clone(),
-                    smear_scale_multiplier,
-                    xz_factor,
-                    xz_scale,
-                    y_factor,
-                    y_scale,
-                );
-                self.density_function
-                    .permutation_table_inputs
-                    .push(perm_table);
-                expr
+                if let Some(cached) = self.get_function_cached_density_input(&density) {
+                    return Expression::DensityVariable(cached.clone(), None);
+                }
+
+                // let input = self.lower_density_input(argument, None, None);
+                // // add to cache
+                // self.add_density_input_to_cache(density, input.clone());
+                // // return the density variable for the input
+                // Expression::DensityVariable(input, None)
+
+                // self.density_function
+                //     .permutation_table_inputs
+                //     .push(perm_table);
+                // expr
+                let density_function_ref = self.lower_old_blended_noise_as_density(density);
+                    
+                let v = anonvar(self.arena, VariableType::DensityInput);
+                let mut bs = self.builder_state.take().unwrap();
+                let dimensions = bs.working_dimensions;
+                let scaled_origin = bs.working_scaled_origin;
+                let scaled_position = bs.working_scaled_position;
+                let input = DensityInput {
+                    var: v.clone(),
+                    density_function: density_function_ref.clone(),
+                    scaled_origin,
+                    scaled_position,
+                    dimensions,
+                };
+
+                bs.insert_density_cache(density, density_function_ref);
+
+                if let Some(func) = &mut self.function {
+                    func.variables.push(v);
+                }
+
+                // return the density input, and put back the caches into the builder state
+                self.builder_state = Some(bs);
+                self.add_density_input_to_cache(&density, input.clone());
+                self.density_function.add_density_input(input.clone());
+
+                return Expression::DensityVariable(input, None);
             }
             DensityType::ShiftedNoise { .. } => {
                 // 0. initiate caching

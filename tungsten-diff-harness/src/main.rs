@@ -18,7 +18,7 @@ fn main() {
     } else {
         None
     };
-    generate::generate_from_source(&config, path, cli.chunk_size);
+    generate::generate_from_source(&config, path, cli.chunk_size, cli.single_run);
     println!("Compiling Rust and CUDA pipelines into shared libraries...");
     rust_build::build_rust_cdylib(&config);
     cuda_build::build_cuda_shared_lib(&config);

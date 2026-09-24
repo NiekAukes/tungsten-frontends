@@ -29,6 +29,12 @@ pub struct Cli {
     #[arg(long, env = "TUNGSTEN_DIFF_CHUNK_SIZE", default_value_t = 16)]
     pub chunk_size: usize,
 
+    /// Perform a single compile/build/run/compare pass over `--source-dir`
+    /// (or the existing `generated-dir`) and report the result, skipping
+    /// the automatic shrink-on-mismatch search.
+    #[arg(long, short = 's', env = "TUNGSTEN_DIFF_SINGLE_RUN")]
+    pub single_run: bool,
+
     /// World seed fed to both pipelines.
     #[arg(long, env = "TUNGSTEN_DIFF_SEED", default_value_t = 0)]
     pub seed: i64,
@@ -46,7 +52,7 @@ pub struct Cli {
     pub origin_z: f64,
 
     /// Absolute/relative tolerance used by the differential oracle.
-    #[arg(long, env = "TUNGSTEN_DIFF_EPSILON", default_value_t = 1e-4)]
+    #[arg(long, env = "TUNGSTEN_DIFF_EPSILON", default_value_t = 1e-6)]
     pub epsilon: f64,
 }
 

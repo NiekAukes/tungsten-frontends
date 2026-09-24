@@ -49,7 +49,29 @@ pub fn build_cuda_shared_lib(config: &HarnessConfig) {
         .status()
         .expect("failed to spawn `nvcc` (is the CUDA toolkit installed?)");
 
-    assert!(status.success(), "nvcc build of cuda_wrapper.cu failed");
+    if !status.success() {
+        let status = Command::new("nvcc")
+        .arg("-arch=compute_75")
+        .arg("--shared")
+        .arg("-Xcompiler")
+        .arg("-fPIC")
+        .arg("-O0")
+        .arg("-t 0")
+        .arg("-o")
+        .arg(&out_path)
+        .arg(&config.cuda_wrapper_src.join("main.cu"))
+        .arg("-I")
+        .arg(&config.generated_dir)
+        .arg("-I")
+        .arg(&config.cuda_wrapper_src)
+        .env("CMAKE_CUDA_COMPILER_LAUNCHER", "ccache")
+        .status()
+        .expect("failed to spawn `nvcc` (is the CUDA toolkit installed?)");
+        if !status.success() {
+            panic!("nvcc build of cuda_wrapper.cu failed on retry");
+        }
+    }
+
     assert!(
         out_path.exists(),
         "expected CUDA shared library at {}, but it was not produced",
