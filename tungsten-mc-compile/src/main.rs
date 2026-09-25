@@ -164,8 +164,6 @@ fn run_with_args(args: Args) {
             .unwrap();
             println!("Generated CUDA orchestration.");
         }
-    } else {
-        eprintln!("No output was generated because neither RCL nor CUDA output is enabled/generated.");
     }
 }
 

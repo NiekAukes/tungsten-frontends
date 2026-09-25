@@ -20,3 +20,4 @@ tungsten-mc-compile = "0.1.0"
 md5 = "0.7.0"
 bytemuck = { version = "1", features = ["derive"] }
 pollster = "0.4"
+rayon = "1.12.0"

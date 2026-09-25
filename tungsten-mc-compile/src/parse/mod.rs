@@ -417,11 +417,21 @@ impl<'m> MinecraftData<'m> {
                 density: vegetation,
             },
             vein_gap: DensitySource::SingleSamplingDensity { density: vein_gap },
-            vein_ridged: DensitySource::SingleSamplingDensity {
+            vein_ridged: DensitySource::MultiSamplingDensity{
                 density: vein_ridged,
+                dimensions: (
+                    self.chunk_size as i32,
+                    settings.height,
+                    self.chunk_size as i32,
+                ),
             },
-            vein_toggle: DensitySource::SingleSamplingDensity {
+            vein_toggle: DensitySource::MultiSamplingDensity {
                 density: vein_toggle,
+                dimensions: (
+                    self.chunk_size as i32,
+                    settings.height,
+                    self.chunk_size as i32,
+                ),
             },
         }
     }
