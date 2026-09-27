@@ -60,7 +60,7 @@ fn run() {
         let handle = builder
             .spawn(move || {
                 //gdt_cpus::pin_thread_to_core(0).unwrap();
-                run_benchmark_mp(&output);
+                run_benchmark(&output);
             })
             .unwrap();
 

@@ -4,7 +4,7 @@ use crate::{
 };
 
 use tungsten_wg::spmt::model::{
-    BinaryOperator, Expression, Function, Statement, Var, Variable, VariableType,
+    BinaryOperator, Expression, Function, Name::Named, Statement, Var, Variable, VariableType,
 };
 
 /// The old spline implementation, which is the verified correct implementation. It does not work on the GPU however.
@@ -25,11 +25,21 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             variables: Vec::new(),
             return_type: VariableType::F32,
         };
-        let p: Var<'m> = Var::new(self.arena.alloc(Variable {
+        let pos3: Var<'m> = Var::new(self.arena.alloc(Variable {
             name: self.p.name.clone(),
-            t: self.p.t.clone(),
+            t: VariableType::Extern("PositionIterator")
         }));
-        function.parameters.push(p.clone());
+        function.parameters.push(pos3.clone());
+
+        let p = Var::new(self.arena.alloc(Variable {
+            name: Named("p".to_string()),
+            t: pos3.t.clone(),
+        }));
+        function.variables.push(p.clone());
+        function.body.push(Statement::Assign {
+            target: p.clone(),
+            value: Expression::Variable(pos3.clone()),
+        });
 
         // Compute coordinate
         let coordinate = newvar(self.arena, "coordinate", VariableType::F32);
@@ -55,7 +65,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         // Build interpolation chain
         // -----------------------------------------
 
-        let r = self.build_spline_chain(&points, p, coordinate);
+        let r = self.build_spline_chain(&points, pos3, coordinate);
         let function_ref = self.finish_and_continue(r, old_function);
 
         // Wrap the function call in an expression

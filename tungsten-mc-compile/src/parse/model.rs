@@ -46,6 +46,7 @@ pub enum DensitySource<'m> {
     MultiSamplingDensity {
         density: Density<'m>,
         dimensions: (i32, i32, i32),
+        is_biome_coordinate: bool,
     },
     SingleSamplingDensity {
         density: Density<'m>,

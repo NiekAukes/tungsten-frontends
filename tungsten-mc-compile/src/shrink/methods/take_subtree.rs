@@ -131,7 +131,7 @@ impl<'m> ShrinkMethod<'m> for TakeSubtree {
         source: DensitySource<'m>,
     ) -> DensitySource<'m> {
         let (root_density, dimensions) = match source {
-            DensitySource::MultiSamplingDensity { density, dimensions } => (density, Some(dimensions)),
+            DensitySource::MultiSamplingDensity { density, dimensions, is_biome_coordinate } => (density, Some((dimensions, is_biome_coordinate))),
             DensitySource::SingleSamplingDensity { density } => (density, None),
         };
 
@@ -144,9 +144,11 @@ impl<'m> ShrinkMethod<'m> for TakeSubtree {
         let selected_child = Self::reconstruct_vital(arena, vital, selected_child);
 
         match dimensions {
-            Some(dim) => DensitySource::MultiSamplingDensity {
+            Some((dim, is_biome_coordinate)) => DensitySource::MultiSamplingDensity {
                 density: selected_child,
                 dimensions: dim,
+                is_biome_coordinate,
+                
             },
             None => DensitySource::SingleSamplingDensity {
                 density: selected_child,

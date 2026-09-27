@@ -87,10 +87,11 @@ pub fn compact_source_to_new_arena<'old, 'new>(
                 density: deep_clone_density(new_arena, density, &intern, &intern_spline, &intern_noise)
             }
         }
-        DensitySource::MultiSamplingDensity { density, dimensions } => {
+        DensitySource::MultiSamplingDensity { density, dimensions , is_biome_coordinate } => {
             DensitySource::MultiSamplingDensity {
                 density: deep_clone_density(new_arena, density, &intern, &intern_spline, &intern_noise),
                 dimensions,
+                is_biome_coordinate,
             }
         }
     }

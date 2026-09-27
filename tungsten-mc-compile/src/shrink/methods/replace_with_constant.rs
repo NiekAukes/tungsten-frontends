@@ -321,7 +321,7 @@ impl<'m> ShrinkMethod<'m> for ReplaceWithConstant {
         source: DensitySource<'m>,
     ) -> DensitySource<'m> {
         let (root_density, dimensions) = match source {
-            DensitySource::MultiSamplingDensity { density, dimensions } => (density, Some(dimensions)),
+            DensitySource::MultiSamplingDensity { density, dimensions, is_biome_coordinate } => (density, Some((dimensions, is_biome_coordinate))),
             DensitySource::SingleSamplingDensity { density } => (density, None),
         };
 
@@ -340,9 +340,10 @@ impl<'m> ShrinkMethod<'m> for ReplaceWithConstant {
         );
 
         match dimensions {
-            Some(dim) => DensitySource::MultiSamplingDensity {
+            Some((dim, is_biome_coordinate)) => DensitySource::MultiSamplingDensity {
                 density: new_density,
                 dimensions: dim,
+                is_biome_coordinate,
             },
             None => DensitySource::SingleSamplingDensity {
                 density: new_density,

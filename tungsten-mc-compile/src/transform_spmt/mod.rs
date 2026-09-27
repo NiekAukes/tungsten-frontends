@@ -4,8 +4,7 @@ use crate::{
 };
 
 use tungsten_wg::{
-    orchestrate::Scale,
-    spmt::model::{DensityFunctionRef, Name, SPMT, Var, Variable, VariableType},
+    orchestrate::Scale, spmt::model::{DensityFunctionRef, MainDensityFunction, Name, SPMT, Var, Variable, VariableType},
 };
 
 pub mod density;
@@ -37,16 +36,56 @@ type DensityFunctionCache<'a, 'm> =
     std::collections::HashMap<DensityKey<'a>, DensityFunctionRef<'m>>;
 type NoiseCache<'a, 'm> = std::collections::HashMap<NormalNoiseKey<'a>, DensityFunctionRef<'m>>;
 
+#[derive(Debug, Clone, Copy)]
+pub struct ScalingSet {
+    pub dimensions: (i32, i32, i32),
+    pub scaled_position: (f64, f64, f64),
+    pub scaled_origin: (f64, f64, f64),
+}
+
+impl Default for ScalingSet {
+    fn default() -> Self {
+        Self {
+            dimensions: (1, 1, 1),
+            scaled_position: (1.0, 1.0, 1.0),
+            scaled_origin: (1.0, 1.0, 1.0),
+        }
+    }
+}
+
+impl ScalingSet {
+    pub fn interpolation(self, add: bool) -> Self {
+        if !add {
+            return self;
+        }
+        ScalingSet { 
+            dimensions: (self.dimensions.0 + 1, self.dimensions.1, self.dimensions.2 + 1),
+            scaled_position: self.scaled_position,
+            scaled_origin: self.scaled_origin,
+        }
+    }
+}
+
 pub struct BuilderState<'a, 'm> {
     density_function_cache: DensityFunctionCache<'a, 'm>,
     pub noise_cache: NoiseCache<'a, 'm>,
 
-    working_dimensions: (i32, i32, i32),
-    original_dimensions: (i32, i32, i32),
-    working_scaled_position: (f64, f64, f64),
-    original_scaled_position: (f64, f64, f64),
-    working_scaled_origin: (f64, f64, f64),
-    original_scaled_origin: (f64, f64, f64),
+    // working_dimensions: (i32, i32, i32),
+    // original_dimensions: (i32, i32, i32),
+    // working_scaled_position: (f64, f64, f64),
+    // original_scaled_position: (f64, f64, f64),
+    // working_scaled_origin: (f64, f64, f64),
+    // original_scaled_origin: (f64, f64, f64),
+
+    // represents the current scaling environment for density calculations.
+    working_set: ScalingSet,
+    // represents the original scaling environment at the source
+    sampling_set: ScalingSet,
+    // represents the scaling environment for flatcache calculations.
+    flatcache_set: ScalingSet,
+
+    add_interpolation_dimension: bool,
+
     known_y_sample_point: Option<i32>, // for cache2d, the y value at which the density is sampled. Flatcache can set this to 0.
 
     pub noise_settings: NoiseSettings,
@@ -57,7 +96,7 @@ impl<'a, 'm> BuilderState<'a, 'm> {
     pub fn get_cached_density(&self, density: &Density<'a>) -> Option<DensityFunctionRef<'m>> {
         let key = DensityKey {
             density: *density,
-            dimensions: self.working_dimensions,
+            dimensions: self.working_set.dimensions,
             scaled_position: Scale::default(),
             scaled_origin: Scale::default(),
         };
@@ -67,7 +106,7 @@ impl<'a, 'm> BuilderState<'a, 'm> {
     pub fn insert_density_cache(&mut self, density: Density<'a>, func: DensityFunctionRef<'m>) {
         let key = DensityKey {
             density,
-            dimensions: self.working_dimensions,
+            dimensions: self.working_set.dimensions,
             scaled_position: Scale::default(),
             scaled_origin: Scale::default(),
         };
@@ -95,12 +134,16 @@ impl<'a, 'm> Transformer<'a, 'm> {
             builder_state: Option::Some(BuilderState {
                 density_function_cache: std::collections::HashMap::new(),
                 noise_cache: std::collections::HashMap::new(),
-                working_dimensions: (0, 0, 0),
-                original_dimensions: (0, 0, 0),
-                working_scaled_position: (1.0, 1.0, 1.0),
-                original_scaled_position: (1.0, 1.0, 1.0),
-                working_scaled_origin: (1.0, 1.0, 1.0),
-                original_scaled_origin: (1.0, 1.0, 1.0),
+                // working_dimensions: (0, 0, 0),
+                // original_dimensions: (0, 0, 0),
+                // working_scaled_position: (1.0, 1.0, 1.0),
+                // original_scaled_position: (1.0, 1.0, 1.0),
+                // working_scaled_origin: (1.0, 1.0, 1.0),
+                // original_scaled_origin: (1.0, 1.0, 1.0),
+                working_set: ScalingSet::default(),
+                flatcache_set: ScalingSet::default(),
+                sampling_set: ScalingSet::default(),
+                add_interpolation_dimension: false,
                 known_y_sample_point: None,
                 noise_settings: NoiseSettings {
                     min_y: 0,
@@ -122,12 +165,15 @@ impl<'a, 'm> Transformer<'a, 'm> {
                 DensitySource::SingleSamplingDensity { density: _ } => {
                     {
                         let bs = self.builder_state.as_mut().unwrap();
-                        bs.working_dimensions = (1, 1, 1);
-                        bs.original_dimensions = (1, 1, 1);
-                        bs.working_scaled_origin = (1.0, 1.0, 1.0);
-                        bs.original_scaled_origin = (1.0, 1.0, 1.0);
-                        bs.working_scaled_position = (1.0, 1.0, 1.0);
-                        bs.original_scaled_position = (1.0, 1.0, 1.0);
+                        // bs.working_dimensions = (1, 1, 1);
+                        // bs.original_dimensions = (1, 1, 1);
+                        // bs.working_scaled_origin = (1.0, 1.0, 1.0);
+                        // bs.original_scaled_origin = (1.0, 1.0, 1.0);
+                        // bs.working_scaled_position = (1.0, 1.0, 1.0);
+                        // bs.original_scaled_position = (1.0, 1.0, 1.0);
+                        bs.working_set = ScalingSet::default();
+                        bs.flatcache_set = ScalingSet::default();
+                        bs.sampling_set = ScalingSet::default();
                         bs.noise_settings = noise_generator.noise.clone();
                     }
 
@@ -141,24 +187,58 @@ impl<'a, 'm> Transformer<'a, 'm> {
                 DensitySource::MultiSamplingDensity {
                     density,
                     dimensions,
+                    is_biome_coordinate,
                 } => {
-                    {
+                    let sampling_set = {
                         let bs = self.builder_state.as_mut().unwrap();
-                        bs.working_dimensions = dimensions;
-                        bs.original_dimensions = dimensions;
-                        bs.working_scaled_origin = (1.0, 1.0, 1.0);
-                        bs.original_scaled_origin = (1.0, 1.0, 1.0);
-                        bs.working_scaled_position = (1.0, 1.0, 1.0);
-                        bs.original_scaled_position = (1.0, 1.0, 1.0);
+                        // bs.working_dimensions = dimensions;
+                        // bs.original_dimensions = dimensions;
+                        // bs.working_scaled_origin = (1.0, 1.0, 1.0);
+                        // bs.original_scaled_origin = (1.0, 1.0, 1.0);
+                        // bs.working_scaled_position = (1.0, 1.0, 1.0);
+                        // bs.original_scaled_position = (1.0, 1.0, 1.0);
+                        
+                        // 
+                        if is_biome_coordinate {
+                            bs.working_set = ScalingSet { 
+                                dimensions,
+                                scaled_origin: (1.0, 1.0, 1.0),
+                                scaled_position: (4.0, noise_generator.noise.size_vertical as f64 * 4.0, 4.0),
+                            };
+                            bs.flatcache_set = ScalingSet { 
+                            dimensions: (dimensions.0, 1, dimensions.2),
+                            scaled_origin: (1.0, 0.0, 1.0),
+                            scaled_position: (4.0, 0.0, 4.0),
+                        };
+                        } else {
+                            bs.working_set = ScalingSet { 
+                                dimensions,
+                                ..Default::default()
+                            };
+                            bs.flatcache_set = ScalingSet { 
+                                dimensions: (dimensions.0 >> 2, 1, dimensions.2 >> 2),
+                                scaled_origin: (1.0, 0.0, 1.0),
+                                scaled_position: (4.0, 0.0, 4.0),
+                                ..Default::default()
+                            };
+                        }
+                        let sampling_set = bs.working_set.clone();
+                        bs.sampling_set = bs.working_set.clone();
                         bs.noise_settings = noise_generator.noise.clone();
-                    }
+                        sampling_set
+                    };
 
                     let density_function = self.lower_density_function(density);
 
                     //self.final_model.density_functions.push(density_function);
                     self.final_model
                         .main_density_functions
-                        .push((density_function, dimensions));
+                        .push(MainDensityFunction {
+                            density_function,
+                            dimensions,
+                            scaled_origin: sampling_set.scaled_origin,
+                            scaled_position: sampling_set.scaled_position,
+                        });
                     self.final_model.density_functions.push(density_function);
                 }
             }
@@ -176,7 +256,7 @@ impl<'a, 'm> Transformer<'a, 'm> {
                 .final_model
                 .main_density_functions
                 .iter()
-                .any(|df| df.0.canonical_name == density_function.canonical_name)
+                .any(|mdf| mdf.density_function.canonical_name == density_function.canonical_name)
             {
                 self.final_model.density_functions.push(*density_function);
             }

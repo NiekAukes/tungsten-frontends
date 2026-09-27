@@ -398,6 +398,7 @@ impl<'m> MinecraftData<'m> {
                     settings.height,
                     self.chunk_size as i32,
                 ),
+                is_biome_coordinate: false,
             },
             fluid_level_floodedness: DensitySource::SingleSamplingDensity {
                 density: fluid_level_floodedness,
@@ -405,9 +406,16 @@ impl<'m> MinecraftData<'m> {
             fluid_level_spread: DensitySource::SingleSamplingDensity {
                 density: fluid_level_spread,
             },
-            initial_density_without_jaggedness: DensitySource::SingleSamplingDensity {
+            initial_density_without_jaggedness: DensitySource::MultiSamplingDensity {
                 density: initial_density_without_jaggedness,
+                dimensions: (
+                    4,
+                    settings.height / (settings.size_vertical * 4),
+                    4,
+                ),
+                is_biome_coordinate: true,
             },
+            // initial_density_without_jaggedness: DensitySource::SingleSamplingDensity { density: initial_density_without_jaggedness },
             lava: DensitySource::SingleSamplingDensity { density: lava },
             ridges: DensitySource::SingleSamplingDensity { density: ridges },
             temperature: DensitySource::SingleSamplingDensity {
@@ -417,22 +425,24 @@ impl<'m> MinecraftData<'m> {
                 density: vegetation,
             },
             vein_gap: DensitySource::SingleSamplingDensity { density: vein_gap },
-            vein_ridged: DensitySource::MultiSamplingDensity{
-                density: vein_ridged,
-                dimensions: (
-                    self.chunk_size as i32,
-                    settings.height,
-                    self.chunk_size as i32,
-                ),
-            },
-            vein_toggle: DensitySource::MultiSamplingDensity {
-                density: vein_toggle,
-                dimensions: (
-                    self.chunk_size as i32,
-                    settings.height,
-                    self.chunk_size as i32,
-                ),
-            },
+            // vein_ridged: DensitySource::MultiSamplingDensity{
+            //     density: vein_ridged,
+            //     dimensions: (
+            //         self.chunk_size as i32,
+            //         settings.height,
+            //         self.chunk_size as i32,
+            //     ),
+            // },
+            // vein_toggle: DensitySource::MultiSamplingDensity {
+            //     density: vein_toggle,
+            //     dimensions: (
+            //         self.chunk_size as i32,
+            //         settings.height,
+            //         self.chunk_size as i32,
+            //     ),
+            // },
+            vein_ridged: DensitySource::SingleSamplingDensity { density: vein_ridged },
+            vein_toggle: DensitySource::SingleSamplingDensity { density: vein_toggle },
         }
     }
 }

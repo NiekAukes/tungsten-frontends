@@ -268,6 +268,9 @@ impl<'a, 'm> SplineLowering<'a, 'm> for DensityBuilder<'a, 'm> {
         if spline1.spline_points.len() != spline2.spline_points.len() {
             return false;
         }
+        if spline1.coordinate != spline2.coordinate {
+            return false;
+        }
         for (point1, point2) in spline1
             .spline_points
             .iter()

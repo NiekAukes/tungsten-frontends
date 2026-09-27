@@ -276,9 +276,9 @@ impl<'m> ShrinkMethod<'m> for RemoveNamedReferences {
         let intern = |arena: &'m Bump, density_type: DensityType<'m>| -> Density<'m> { arena.alloc(density_type) };
 
         match source {
-            DensitySource::MultiSamplingDensity { density, dimensions } => {
+            DensitySource::MultiSamplingDensity { density, dimensions, is_biome_coordinate } => {
                 let new_density = Self::strip_all(arena, density, true, &intern);
-                DensitySource::MultiSamplingDensity { density: new_density, dimensions }
+                DensitySource::MultiSamplingDensity { density: new_density, dimensions, is_biome_coordinate }
             }
             DensitySource::SingleSamplingDensity { density } => {
                 let new_density = Self::strip_all(arena, density, true, &intern);

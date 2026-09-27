@@ -123,7 +123,7 @@ fn run_with_args(args: Args) {
     }
 
     if let Some(wave_graph) = compiled_output.wave_orchestration_graph {
-        let wave_graph_path = args.output.join("wave_orchestration_graph").with_extension("dot");
+        let wave_graph_path = std::path::Path::new("wave_orchestration_graph").with_extension("dot");
         std::fs::write(&wave_graph_path, wave_graph).expect("Unable to write wave orchestration graph");
         println!("Generated wave orchestration graph at '{}'", wave_graph_path.display());
     }
@@ -189,8 +189,9 @@ fn emit_intermediate_files(mcdata: &parse::MinecraftData, program: &SPMT) {
     std::fs::create_dir_all("density_dags").expect("Unable to create directory");
 
     let mut name_cache_bor = Some(name_cache);
-    for (i, (density_function, _)) in program.main_density_functions.iter().enumerate() {
-        let ddag_root = *density_function;
+    for (i, mdf)in program.main_density_functions.iter().enumerate() {
+        let density_function = mdf.density_function;
+        let ddag_root = density_function;
         let ddag = DensityDAG { root: ddag_root };
         let mut printer = Printer::new_with_name_cache(name_cache_bor.take().unwrap());
         ddag.pretty(&mut printer);
@@ -198,7 +199,7 @@ fn emit_intermediate_files(mcdata: &parse::MinecraftData, program: &SPMT) {
 
         let fname = density_function.canonical_name.clone().unwrap_or_else(|| {
             name_cache
-                .get(&(*density_function).addr())
+                .get(&(density_function).addr())
                 .cloned()
                 .unwrap_or_else(|| "unknown".into())
         });
