@@ -110,6 +110,9 @@ impl<'a, 'm> BuilderState<'a, 'm> {
             scaled_position: Scale::default(),
             scaled_origin: Scale::default(),
         };
+        if self.density_function_cache.contains_key(&key) {
+            // panic!("Density function already exists in cache: {:?}", func.canonical_name);
+        }
         self.density_function_cache.insert(key, func);
     }
 }
@@ -268,7 +271,7 @@ impl<'a, 'm> Transformer<'a, 'm> {
         self.final_model
     }
 
-    pub fn lower_density_function(&mut self, mut density: Density<'a>) -> DensityFunctionRef<'m> {
+    pub fn lower_density_function(&mut self, density: Density<'a>) -> DensityFunctionRef<'m> {
         let bs = self.builder_state.take().unwrap();
         if let Some(cached) = bs.get_cached_density(&density) {
             let ret = cached.clone();
@@ -277,19 +280,20 @@ impl<'a, 'm> Transformer<'a, 'm> {
         }
 
         let mut name = None;
+        let mut inner_density = density;
         if let DensityType::NamedDensityReference {
             name: dname,
             argument,
         } = *density
         {
-            density = argument;
+            inner_density = argument;
             name = Some(dname.clone())
         }
 
         // create a density function builder
         let mut builder = DensityBuilder::new_named(self.arena, bs, name);
         // lower the density into the builder
-        let r = builder.lower_density(density);
+        let r = builder.lower_density(inner_density);
         // build the density function
         let (density_function, helpers, mut bs) = builder.finish(r);
         self.final_model.functions.extend(helpers);
@@ -298,6 +302,8 @@ impl<'a, 'm> Transformer<'a, 'm> {
             DensityFunctionRef::new(self.arena.alloc(density_function));
         let _a = density_function.canonical_name.as_ref().unwrap();
 
+        // explicitly leave the NamedDensityReference as the outer density
+        // such that there are no cache conflicts between the NamedDensityReference and its inner density function.
         bs.insert_density_cache(density, density_function);
         self.builder_state = Some(bs);
         density_function

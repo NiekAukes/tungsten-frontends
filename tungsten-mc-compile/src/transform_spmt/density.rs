@@ -417,12 +417,11 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             //let r = builder.lower_density(density);
             let r = lower_function(&mut builder, density);
             let (density_function, _helpers, bs_returned) = builder.finish(r);
-
             // additional check to see if the density function is aliased
-            if let Some(_cached) = bs_returned.get_cached_density(&density) {
-                // let c = cached.clone();
-                // bs = bs_returned;
-                panic!("Density function is aliased");
+            if let Some(cached) = bs_returned.get_cached_density(&density) {
+                let c = cached.clone();
+                bs = bs_returned;
+                c
             } else {
                 bs = bs_returned;
 
@@ -1056,23 +1055,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 // return the density variable for the input
                 Expression::DensityVariable(input, None)
             }
-            DensityType::NamedDensityReference { argument, name } => {
-                if !self.builder_settings.new_shader_named_densities {
-                    // if named density references are disabled, just lower the argument
-                    return self.lower_density(argument);
-                }
-                if let Some(cached) = self.get_function_cached_density_input(&density) {
-                    return Expression::DensityVariable(cached.clone(), None);
-                }
-                let name = format!("{}", name,);
-                let input = self.lower_density_input(argument, Some(name), None);
-                // return the density variable for the input
-                Expression::DensityVariable(input, None)
-
-                // it's not needed anymore to cache the density input for named density references,
-
-                //self.lower_density(argument)
-            }
+            
             DensityType::OldBlendedNoise {
                 ..
             } => {
@@ -1118,109 +1101,9 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
 
                 return Expression::DensityVariable(input, None);
             }
+
             DensityType::ShiftedNoise { .. } => {
-                // 0. initiate caching
-                let density_input = self.lower_density_input(
-                    density,
-                    None,
-                    Some(&|builder, density| {
-                        let DensityType::ShiftedNoise {
-                            ref name,
-                            noise,
-                            shift_x,
-                            shift_y,
-                            shift_z,
-                            xz_scale,
-                            y_scale,
-                        } = *density
-                        else {
-                            panic!("Expected ShiftedNoise density");
-                        };
-
-                        // 1. Lower shift densities
-                        let shift_x_expr = builder.lower_density(shift_x);
-                        let shift_y_expr = builder.lower_density(shift_y);
-                        let shift_z_expr = builder.lower_density(shift_z);
-
-                        // 2. Build vec3(shiftX, shiftY, shiftZ)
-                        let shift_vec = Expression::Construct {
-                            t: VariableType::Vec3,
-                            args: vec![shift_x_expr, shift_y_expr, shift_z_expr],
-                        };
-
-                        // 3. p + shift_vec
-                        let shifted_position = if xz_scale == 1.0 && y_scale == 1.0 {
-                            Expression::BinaryOp {
-                                op: BinaryOperator::Add,
-                                left: Box::new(Expression::Variable(builder.rpos3.clone())),
-                                right: Box::new(shift_vec),
-                            }
-                        } else {
-                            Expression::BinaryOp {
-                                op: BinaryOperator::Add,
-                                left: Box::new(Expression::BinaryOp {
-                                    op: BinaryOperator::Multiply,
-                                    left: Box::new(Expression::Variable(builder.rpos3.clone())),
-                                    right: Box::new(Expression::Construct {
-                                        t: VariableType::Vec3,
-                                        args: vec![
-                                            Expression::Double(xz_scale),
-                                            Expression::Double(y_scale),
-                                            Expression::Double(xz_scale),
-                                        ],
-                                    }),
-                                }),
-                                right: Box::new(shift_vec),
-                            }
-                        };
-
-                        let mut bs = builder.builder_state.take().unwrap();
-                        let id = bs.use_density_counter();
-                        let cname = format!("{}_shifted_{}", name, id);
-
-                        let scaled_origin = (
-                            bs.working_set.scaled_origin.0 * xz_scale,
-                            bs.working_set.scaled_origin.1 * y_scale,
-                            bs.working_set.scaled_origin.2 * xz_scale,
-                        );
-                        let scaled_position = (
-                            bs.working_set.scaled_position.0 * xz_scale,
-                            bs.working_set.scaled_position.1 * y_scale,
-                            bs.working_set.scaled_position.2 * xz_scale,
-                        );
-
-                        builder.builder_state = Some(bs);
-
-                        // 4. Lower noise but don't mark it, we just want the density function reference
-                        let (noise_function_ref, perm_tables) = builder.lower_noise(
-                            noise,
-                            scaled_origin,
-                            scaled_position,
-                            &name,
-                            cname,
-                        );
-                        // add it as a helper function
-                        builder.helper_functions.push(noise_function_ref.clone());
-                        let perm_tables_args = perm_tables
-                            .clone()
-                            .into_iter()
-                            .map(|perm_table| Expression::PermutationTable(perm_table));
-                        // add the permutation tables to the current density function
-                        builder
-                            .density_function
-                            .permutation_table_inputs
-                            .extend(perm_tables);
-                        let parameters = std::iter::once(shifted_position.into())
-                            .chain(perm_tables_args)
-                            .collect();
-                        Expression::FunctionCall {
-                            function: noise_function_ref,
-                            parameters,
-                        }
-                    }),
-                );
-
-                Expression::DensityVariable(density_input, None)
+                self.lower_shifted_noise(density, None)
             }
             DensityType::ShiftA { argument, ref name } => {
                 // Samples a noise at (x/4, 0, z/4), then multiplies it by 4.
@@ -1654,7 +1537,129 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     }),
                 }
             }
+
+            DensityType::NamedDensityReference { argument, name } => {
+                if !self.builder_settings.new_shader_named_densities {
+                    // if named density references are disabled, just lower the argument
+                    return self.lower_density(argument);
+                }
+                if let Some(cached) = self.get_function_cached_density_input(&density) {
+                    return Expression::DensityVariable(cached.clone(), None);
+                }
+                let name = format!("{}", name,);
+                let input = self.lower_density_input(argument, Some(name), None);
+                // return the density variable for the input
+                Expression::DensityVariable(input, None)
+
+                // it's not needed anymore to cache the density input for named density references,
+
+                //self.lower_density(argument)
+            }
         }
+    }
+
+    fn lower_shifted_noise(&mut self, density: Density<'a>, canonical_name: Option<String>) -> Expression<'m> {
+        // 0. initiate caching
+        let density_input = self.lower_density_input(
+            density,
+            None,
+            Some(&|builder, density| {
+                let DensityType::ShiftedNoise {
+                    ref name,
+                    noise,
+                    shift_x,
+                    shift_y,
+                    shift_z,
+                    xz_scale,
+                    y_scale,
+                } = *density
+                else {
+                    panic!("Expected ShiftedNoise density");
+                };
+
+                // 1. Lower shift densities
+                let shift_x_expr = builder.lower_density(shift_x);
+                let shift_y_expr = builder.lower_density(shift_y);
+                let shift_z_expr = builder.lower_density(shift_z);
+
+                // 2. Build vec3(shiftX, shiftY, shiftZ)
+                let shift_vec = Expression::Construct {
+                    t: VariableType::Vec3,
+                    args: vec![shift_x_expr, shift_y_expr, shift_z_expr],
+                };
+
+                // 3. p + shift_vec
+                let shifted_position = if xz_scale == 1.0 && y_scale == 1.0 {
+                    Expression::BinaryOp {
+                        op: BinaryOperator::Add,
+                        left: Box::new(Expression::Variable(builder.rpos3.clone())),
+                        right: Box::new(shift_vec),
+                    }
+                } else {
+                    Expression::BinaryOp {
+                        op: BinaryOperator::Add,
+                        left: Box::new(Expression::BinaryOp {
+                            op: BinaryOperator::Multiply,
+                            left: Box::new(Expression::Variable(builder.rpos3.clone())),
+                            right: Box::new(Expression::Construct {
+                                t: VariableType::Vec3,
+                                args: vec![
+                                    Expression::Double(xz_scale),
+                                    Expression::Double(y_scale),
+                                    Expression::Double(xz_scale),
+                                ],
+                            }),
+                        }),
+                        right: Box::new(shift_vec),
+                    }
+                };
+
+                let mut bs = builder.builder_state.take().unwrap();
+                let id = bs.use_density_counter();
+                let cname = format!("{}_shifted_{}", name, id);
+                let scaled_origin = (
+                    bs.working_set.scaled_origin.0 * xz_scale,
+                    bs.working_set.scaled_origin.1 * y_scale,
+                    bs.working_set.scaled_origin.2 * xz_scale,
+                );
+                let scaled_position = (
+                    bs.working_set.scaled_position.0 * xz_scale,
+                    bs.working_set.scaled_position.1 * y_scale,
+                    bs.working_set.scaled_position.2 * xz_scale,
+                );
+
+                builder.builder_state = Some(bs);
+
+                // 4. Lower noise but don't mark it, we just want the density function reference
+                let (noise_function_ref, perm_tables) = builder.lower_noise(
+                    noise,
+                    scaled_origin,
+                    scaled_position,
+                    &name,
+                    cname,
+                );
+                // add it as a helper function
+                builder.helper_functions.push(noise_function_ref.clone());
+                let perm_tables_args = perm_tables
+                    .clone()
+                    .into_iter()
+                    .map(|perm_table| Expression::PermutationTable(perm_table));
+                // add the permutation tables to the current density function
+                builder
+                    .density_function
+                    .permutation_table_inputs
+                    .extend(perm_tables);
+                let parameters = std::iter::once(shifted_position.into())
+                    .chain(perm_tables_args)
+                    .collect();
+                Expression::FunctionCall {
+                    function: noise_function_ref,
+                    parameters,
+                }
+            }),
+        );
+
+        Expression::DensityVariable(density_input, None)
     }
 
     pub fn dedup_permutation_tables(&mut self) {
