@@ -43,27 +43,45 @@ pub fn lower_normal_noise<'m>(
     // let rpos3f0 = rpos3 * freq0
     let frequencies = filtered_frequency_amplitude_list(noise);
     let mut rpos3fxs = Vec::new();
+    let mut rpos3fxs2 = Vec::new();
     for (i, (freq, _, _)) in frequencies.iter().enumerate() {
-        let rpos3f = newvar(arena, &format!("rpos3f{}", i), VariableType::Vec3);
-        body.push(Statement::Assign {
-            target: rpos3f.clone(),
-            value: Expression::BinaryOp {
-                op: BinaryOperator::Multiply,
-                left: Box::new(Expression::Variable(rpos3.clone())),
-                right: Box::new(Expression::Double(*freq)),
-            },
-        });
-        rpos3fxs.push(rpos3f.clone());
-        variables.push(rpos3f);
+        //let rpos3f = newvar(arena, &format!("rpos3f{}", i), VariableType::Vec3);
+        // body.push(Statement::Assign {
+        //     target: rpos3f.clone(),
+        //     value: Expression::BinaryOp {
+        //         op: BinaryOperator::Multiply,
+        //         left: Box::new(Expression::Variable(rpos3.clone())),
+        //         right: Box::new(Expression::Double(*freq)),
+        //     },
+        // });
+        let rpos3f = Expression::BinaryOp {
+            op: BinaryOperator::Multiply,
+            left: Box::new(Expression::Variable(rpos3.clone())),
+            right: Box::new(Expression::Double(*freq)),
+        };
+        let rpos3f2 = Expression::BinaryOp {
+            op: BinaryOperator::Multiply,
+            left: Box::new(Expression::Variable(rpos3.clone())),
+            right: Box::new(Expression::Double(*freq * DOUBLE_PERLIN_OFFSET)),
+        };
+        rpos3fxs.push(rpos3f);
+        rpos3fxs2.push(rpos3f2);
+        //variables.push(rpos3f);
     }
+
+    let result = newvar(arena, "n", VariableType::F64);
+    variables.push(result.clone());
+    body.push(Statement::Assign {
+        target: result.clone(),
+        value: Expression::Double(0.0),
+    });
 
     // call perlin for each octave, and additionally add another perlin call with the same frequency but offset position
     // n[i] = (perlin(rpos3fi) + perlin(rpos3fi * scaling)) * amp[i]
     let normal_amplitude = double_perlin_amplitude(noise);
-    let mut noise_terms = Vec::new();
     let mut permutation_table_inputs = Vec::new();
     for (i, (_, amp, octave_id)) in frequencies.iter().enumerate() {
-        let n = newvar(arena, &format!("n{}", octave_id), VariableType::F64);
+        //let n = newvar(arena, &format!("n{}", octave_id), VariableType::F64);
 
         // let noise_ident = random::xoroshiro_seed(&cname);
         // let perlin_ident = random::xoroshiro_seed(&format!("octave_{}", octave_id));
@@ -83,50 +101,66 @@ pub fn lower_normal_noise<'m>(
         permutation_table_inputs.push(perm2);
         let perlin1 = Expression::ExternCall {
             function_name: "perlin".into(),
-            parameters: vec![Expression::Variable(rpos3fxs[i].clone()), perm1_var],
+            parameters: vec![rpos3fxs[i].clone(), perm1_var],
             parameter_types: vec![VariableType::Vec3, VariableType::PermutationTable],
         };
-        let scaled_rpos3f = Expression::BinaryOp {
-            op: BinaryOperator::Multiply,
-            left: Box::new(Expression::Variable(rpos3fxs[i].clone())),
-            right: Box::new(Expression::Double(DOUBLE_PERLIN_OFFSET)),
-        };
+        let scaled_rpos3f = rpos3fxs2[i].clone();
         let perlin2 = Expression::ExternCall {
             function_name: "perlin".into(),
             parameters: vec![scaled_rpos3f, perm2_var],
             parameter_types: vec![VariableType::Vec3, VariableType::PermutationTable],
         };
-        let noise_sum = Expression::BinaryOp {
-            op: BinaryOperator::Add,
-            left: Box::new(perlin1),
-            right: Box::new(perlin2),
-        };
-        let scaled_noise = Expression::BinaryOp {
+        // let noise_sum = Expression::BinaryOp {
+        //     op: BinaryOperator::Add,
+        //     left: Box::new(perlin1),
+        //     right: Box::new(perlin2),
+        // };
+        // let scaled_noise = Expression::BinaryOp {
+        //     op: BinaryOperator::Multiply,
+        //     left: Box::new(noise_sum),
+        //     right: Box::new(Expression::Double(*amp)),
+        // };
+        let scaled_noise1 = Expression::BinaryOp {
             op: BinaryOperator::Multiply,
-            left: Box::new(noise_sum),
+            left: Box::new(perlin1),
+            right: Box::new(Expression::Double(*amp)),
+        };
+        let scaled_noise2 = Expression::BinaryOp {
+            op: BinaryOperator::Multiply,
+            left: Box::new(perlin2),
             right: Box::new(Expression::Double(*amp)),
         };
         body.push(Statement::Assign {
-            target: n.clone(),
-            value: scaled_noise,
+            target: result.clone(),
+            value: Expression::BinaryOp { op: BinaryOperator::Add,
+                left: Box::new(Expression::Variable(result.clone())),
+                right: Box::new(scaled_noise1),
+            },
         });
-        noise_terms.push(Expression::Variable(n.clone()));
-        variables.push(n);
+        body.push(Statement::Assign {
+            target: result.clone(),
+            value: Expression::BinaryOp { op: BinaryOperator::Add,
+                left: Box::new(Expression::Variable(result.clone())),
+                right: Box::new(scaled_noise2),
+            },
+        });
+        //noise_terms.push(Expression::Variable(n.clone()));
+        //variables.push(n);
     }
 
     // sum all noise terms
-    let sum = noise_terms
-        .into_iter()
-        .reduce(|a, b| Expression::BinaryOp {
-            op: BinaryOperator::Add,
-            left: Box::new(a),
-            right: Box::new(b),
-        })
-        .unwrap();
+    // let sum = noise_terms
+    //     .into_iter()
+    //     .reduce(|a, b| Expression::BinaryOp {
+    //         op: BinaryOperator::Add,
+    //         left: Box::new(a),
+    //         right: Box::new(b),
+    //     })
+    //     .unwrap();
 
     let final_sum = Expression::BinaryOp {
         op: BinaryOperator::Multiply,
-        left: Box::new(sum),
+        left: Box::new(Expression::Variable(result.clone())),
         right: Box::new(Expression::Double(normal_amplitude)),
     };
     body.push(Statement::Return(final_sum));
