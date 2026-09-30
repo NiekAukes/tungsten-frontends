@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::parse::model::{DensityType, NormalNoise, NormalNoiseType, SplinePoint, SplineType, SplineValue};
+use crate::parse::model::{DensityType, NormalNoiseType, SplinePoint, SplineType, SplineValue};
 
 impl<'m> fmt::Display for DensityType<'m> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -44,7 +44,7 @@ pub fn lower_normal_noise<'m>(
     let frequencies = filtered_frequency_amplitude_list(noise);
     let mut rpos3fxs = Vec::new();
     let mut rpos3fxs2 = Vec::new();
-    for (i, (freq, _, _)) in frequencies.iter().enumerate() {
+    for (_i, (freq, _, _)) in frequencies.iter().enumerate() {
         //let rpos3f = newvar(arena, &format!("rpos3f{}", i), VariableType::Vec3);
         // body.push(Statement::Assign {
         //     target: rpos3f.clone(),

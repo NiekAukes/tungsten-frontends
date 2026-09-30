@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    parse::{density, model::{Density, DensityType, NormalNoise}}, transform_spmt::{
+    parse::{model::{Density, DensityType, NormalNoise}}, transform_spmt::{
         BuilderState, anonvar, newvar,
         noise::{lower_normal_noise, lower_old_blended_noise},
         prefixvar,
@@ -1558,7 +1558,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         }
     }
 
-    fn lower_shifted_noise(&mut self, density: Density<'a>, canonical_name: Option<String>) -> Expression<'m> {
+    fn lower_shifted_noise(&mut self, density: Density<'a>, _canonical_name: Option<String>) -> Expression<'m> {
         // 0. initiate caching
         let density_input = self.lower_density_input(
             density,

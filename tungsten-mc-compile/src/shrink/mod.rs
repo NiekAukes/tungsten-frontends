@@ -1,6 +1,6 @@
 use bumpalo::Bump;
 
-use crate::parse::model::{Density, DensitySource, DensityType};
+use crate::parse::model::DensitySource;
 
 /// Module for shrinking the search space in the Minecraft world generation harness.
 /// Very useful for automatic debugging of world generation issues.

@@ -11,11 +11,11 @@ impl<'m> ShrinkMethod<'m> for RemoveOperand {
         "remove_operand"
     }
 
-    fn can_shrink(&mut self, remaining_strikes: u32, _source: DensitySource) -> (bool, u32) {
+    fn can_shrink(&mut self, _remaining_strikes: u32, _source: DensitySource) -> (bool, u32) {
         (false, 0)
     }
 
-    fn perform_shrink(&mut self, arena: &'m Bump, remaining_strikes: u32, _source: DensitySource<'m>) -> DensitySource<'m> {
+    fn perform_shrink(&mut self, _arena: &'m Bump, _remaining_strikes: u32, _source: DensitySource<'m>) -> DensitySource<'m> {
         todo!()
     }
     fn reenable(&mut self) {
