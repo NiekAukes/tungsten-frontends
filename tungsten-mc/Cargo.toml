@@ -1,6 +1,6 @@
 [package]
 name = "tungsten-mc"
-version = "0.1.0"
+version = "0.211.0"
 edition = "2021"
 authors = ["Niek Aukes"]
 description = "Minecraft worldgen runtime library with optimized implementations of density functions, noise generators, and utility functions"
@@ -14,7 +14,7 @@ exclude = [
 ]
 
 [build-dependencies]
-tungsten-mc-compile = { path = "../tungsten-mc-compile" }
+tungsten-mc-compile = "0.211.0"
 
 [dependencies]
 md5 = "0.7.0"

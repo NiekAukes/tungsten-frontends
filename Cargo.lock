@@ -461,23 +461,36 @@ dependencies = [
  "libloading",
  "rand",
  "serde_json",
- "tungsten-mc-compile",
+ "tungsten-mc-compile 0.211.0",
 ]
 
 [[package]]
 name = "tungsten-mc"
-version = "0.1.0"
+version = "0.211.0"
 dependencies = [
  "bytemuck",
  "md5 0.7.0",
  "pollster 0.4.0",
  "rayon",
- "tungsten-mc-compile",
+ "tungsten-mc-compile 0.211.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "tungsten-mc-compile"
 version = "0.211.0"
+dependencies = [
+ "bumpalo",
+ "clap",
+ "serde",
+ "serde_json",
+ "tungsten-wg",
+]
+
+[[package]]
+name = "tungsten-mc-compile"
+version = "0.211.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51e6b71f622e1d387735e0d736bede0dfd611c559572b7b84295ea6b2d8f8118"
 dependencies = [
  "bumpalo",
  "clap",
