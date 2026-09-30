@@ -477,7 +477,7 @@ dependencies = [
 
 [[package]]
 name = "tungsten-mc-compile"
-version = "0.1.0"
+version = "0.211.0"
 dependencies = [
  "bumpalo",
  "clap",

@@ -1,6 +1,6 @@
 [package]
 name = "tungsten-mc-compile"
-version = "0.1.0"
+version = "0.211.0"
 edition = "2021"
 authors = ["Niek Aukes"]
 description = "Minecraft worldgen compiler - parses Minecraft data packs and compiles them to optimized Rust/CUDA code"
