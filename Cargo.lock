@@ -461,7 +461,7 @@ dependencies = [
  "libloading",
  "rand",
  "serde_json",
- "tungsten-mc-compile 0.1.0",
+ "tungsten-mc-compile",
 ]
 
 [[package]]
@@ -472,7 +472,7 @@ dependencies = [
  "md5 0.7.0",
  "pollster 0.4.0",
  "rayon",
- "tungsten-mc-compile 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tungsten-mc-compile",
 ]
 
 [[package]]
@@ -483,40 +483,14 @@ dependencies = [
  "clap",
  "serde",
  "serde_json",
- "tungsten-wg 0.1.0",
-]
-
-[[package]]
-name = "tungsten-mc-compile"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a37932205560f780380ab8abbabf353944b1b229fbd5bfd3787dfb433c8142d"
-dependencies = [
- "bumpalo",
- "clap",
- "serde",
- "serde_json",
- "tungsten-wg 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tungsten-wg",
 ]
 
 [[package]]
 name = "tungsten-wg"
-version = "0.1.0"
-dependencies = [
- "bumpalo",
- "bytemuck",
- "md5 0.8.0",
- "pollster 0.3.0",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "tungsten-wg"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dabf82202aacdc4318d6905ee3a16907886cc3bcdeb3090114274c40395cf2c6"
+checksum = "052acebf5fe75f4adfebe3aed1e57d3e25ff84f4d0adbb2bda6c7c467957f3fe"
 dependencies = [
  "bumpalo",
  "bytemuck",
