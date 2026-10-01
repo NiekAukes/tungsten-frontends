@@ -3,7 +3,10 @@ use crate::{
     transform_spmt::{density::DensityBuilder, prefixvar},
 };
 
-use tungsten_wg::spmt::model::{Expression, Statement, VariableType};
+use tungsten_wg::spmt::{
+    builder::SPMTBuilder,
+    model::{Expression, Statement, VariableType},
+};
 
 impl<'a, 'm> DensityBuilder<'a, 'm> {
     pub fn lower_spline_definition_new(
@@ -171,6 +174,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 VariableType::Array(Box::new(VariableType::F32), n),
                 VariableType::F32,
             ],
+            return_type: VariableType::I32,
         }
     }
 
@@ -243,6 +247,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 VariableType::F32,
                 VariableType::I32,
             ],
+            return_type: VariableType::F32,
         }
     }
 }

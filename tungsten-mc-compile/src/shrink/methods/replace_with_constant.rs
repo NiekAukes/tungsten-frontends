@@ -1,6 +1,8 @@
 use bumpalo::Bump;
 
-use crate::parse::model::{Density, DensitySource, DensityType, SplinePoint, SplineType, SplineValue};
+use crate::parse::model::{
+    Density, DensitySource, DensityType, SplinePoint, SplineType, SplineValue,
+};
 use crate::shrink::ShrinkMethod;
 
 /// Replaces a single, specific subtree anywhere in the AST with `Const(0.0)`.
@@ -37,7 +39,7 @@ impl ReplaceWithConstant {
                 count += Self::count_candidates(*left);
                 count += Self::count_candidates(*right);
             }
-            
+
             // Unary Nodes & Wrappers
             DensityType::Cache2d { argument }
             | DensityType::Squeeze { argument }
@@ -48,11 +50,15 @@ impl ReplaceWithConstant {
             | DensityType::Square { argument }
             | DensityType::Cube { argument }
             | DensityType::XNegative { argument, .. }
-            | DensityType::Clamp { input: argument, .. }
-            | DensityType::WeirdScaledSampler { input: argument, .. } => {
+            | DensityType::Clamp {
+                input: argument, ..
+            }
+            | DensityType::WeirdScaledSampler {
+                input: argument, ..
+            } => {
                 count += Self::count_candidates(*argument);
             }
-            
+
             // Ternary Nodes
             DensityType::RangeChoice {
                 input,
@@ -74,12 +80,12 @@ impl ReplaceWithConstant {
                 count += Self::count_candidates(*shift_y);
                 count += Self::count_candidates(*shift_z);
             }
-            
+
             // Deep Spline Traversal
             DensityType::Spline { spline } => {
                 count += Self::count_spline_candidates(spline);
             }
-            
+
             // Leaf Nodes (Noise, EndIslands, Const, ShiftA, ShiftB, YClampedGradient, OldBlendedNoise)
             _ => {}
         }
@@ -113,11 +119,18 @@ impl ReplaceWithConstant {
         // Named references are debug labels only; skip the wrapper itself
         // and recurse straight into its argument.
         if let DensityType::NamedDensityReference { name, argument } = &*density {
-            let new_arg = Self::replace_nth(arena, *argument, target_strike, current_strike, intern);
+            let new_arg =
+                Self::replace_nth(arena, *argument, target_strike, current_strike, intern);
             return if std::ptr::eq(&*new_arg, &**argument) {
                 density
             } else {
-                intern(arena, DensityType::NamedDensityReference { name: *name, argument: new_arg })
+                intern(
+                    arena,
+                    DensityType::NamedDensityReference {
+                        name: *name,
+                        argument: new_arg,
+                    },
+                )
             };
         }
 
@@ -134,23 +147,37 @@ impl ReplaceWithConstant {
             | DensityType::Multiply { left, right }
             | DensityType::Min { left, right }
             | DensityType::Max { left, right } => {
-                let new_left = Self::replace_nth(arena, *left, target_strike, current_strike, intern);
-                let new_right = Self::replace_nth(arena, *right, target_strike, current_strike, intern);
-                
+                let new_left =
+                    Self::replace_nth(arena, *left, target_strike, current_strike, intern);
+                let new_right =
+                    Self::replace_nth(arena, *right, target_strike, current_strike, intern);
+
                 if std::ptr::eq(&*new_left, &**left) && std::ptr::eq(&*new_right, &**right) {
                     density
                 } else {
                     let new_dt = match &*density {
-                        DensityType::Add { .. } => DensityType::Add { left: new_left, right: new_right },
-                        DensityType::Multiply { .. } => DensityType::Multiply { left: new_left, right: new_right },
-                        DensityType::Min { .. } => DensityType::Min { left: new_left, right: new_right },
-                        DensityType::Max { .. } => DensityType::Max { left: new_left, right: new_right },
+                        DensityType::Add { .. } => DensityType::Add {
+                            left: new_left,
+                            right: new_right,
+                        },
+                        DensityType::Multiply { .. } => DensityType::Multiply {
+                            left: new_left,
+                            right: new_right,
+                        },
+                        DensityType::Min { .. } => DensityType::Min {
+                            left: new_left,
+                            right: new_right,
+                        },
+                        DensityType::Max { .. } => DensityType::Max {
+                            left: new_left,
+                            right: new_right,
+                        },
                         _ => unreachable!(),
                     };
                     intern(arena, new_dt)
                 }
             }
-            
+
             // Grouped Simple Unary Nodes
             DensityType::Cache2d { argument }
             | DensityType::Squeeze { argument }
@@ -160,16 +187,23 @@ impl ReplaceWithConstant {
             | DensityType::Abs { argument }
             | DensityType::Square { argument }
             | DensityType::Cube { argument } => {
-                let new_arg = Self::replace_nth(arena, *argument, target_strike, current_strike, intern);
+                let new_arg =
+                    Self::replace_nth(arena, *argument, target_strike, current_strike, intern);
                 if std::ptr::eq(&*new_arg, &**argument) {
                     density
                 } else {
                     let new_dt = match &*density {
                         DensityType::Cache2d { .. } => DensityType::Cache2d { argument: new_arg },
                         DensityType::Squeeze { .. } => DensityType::Squeeze { argument: new_arg },
-                        DensityType::Interpolated { .. } => DensityType::Interpolated { argument: new_arg },
-                        DensityType::FlatCache { .. } => DensityType::FlatCache { argument: new_arg },
-                        DensityType::CacheOnce { .. } => DensityType::CacheOnce { argument: new_arg },
+                        DensityType::Interpolated { .. } => {
+                            DensityType::Interpolated { argument: new_arg }
+                        }
+                        DensityType::FlatCache { .. } => {
+                            DensityType::FlatCache { argument: new_arg }
+                        }
+                        DensityType::CacheOnce { .. } => {
+                            DensityType::CacheOnce { argument: new_arg }
+                        }
                         DensityType::Abs { .. } => DensityType::Abs { argument: new_arg },
                         DensityType::Square { .. } => DensityType::Square { argument: new_arg },
                         DensityType::Cube { .. } => DensityType::Cube { argument: new_arg },
@@ -181,58 +215,148 @@ impl ReplaceWithConstant {
 
             // Complex Unary Wrappers (Cannot be easily grouped due to distinct fields)
             DensityType::Clamp { input, min, max } => {
-                let new_input = Self::replace_nth(arena, *input, target_strike, current_strike, intern);
-                if std::ptr::eq(&*new_input, &**input) { density } else { intern(arena, DensityType::Clamp { input: new_input, min: *min, max: *max }) }
+                let new_input =
+                    Self::replace_nth(arena, *input, target_strike, current_strike, intern);
+                if std::ptr::eq(&*new_input, &**input) {
+                    density
+                } else {
+                    intern(
+                        arena,
+                        DensityType::Clamp {
+                            input: new_input,
+                            min: *min,
+                            max: *max,
+                        },
+                    )
+                }
             }
-            DensityType::XNegative { argument, neg_x_multiplier } => {
-                let new_arg = Self::replace_nth(arena, *argument, target_strike, current_strike, intern);
-                if std::ptr::eq(&*new_arg, &**argument) { density } else { intern(arena, DensityType::XNegative { argument: new_arg, neg_x_multiplier: *neg_x_multiplier }) }
+            DensityType::XNegative {
+                argument,
+                neg_x_multiplier,
+            } => {
+                let new_arg =
+                    Self::replace_nth(arena, *argument, target_strike, current_strike, intern);
+                if std::ptr::eq(&*new_arg, &**argument) {
+                    density
+                } else {
+                    intern(
+                        arena,
+                        DensityType::XNegative {
+                            argument: new_arg,
+                            neg_x_multiplier: *neg_x_multiplier,
+                        },
+                    )
+                }
             }
-            DensityType::WeirdScaledSampler { input, noise_name, noise_to_sample, rarity_value_mapper } => {
-                let new_input = Self::replace_nth(arena, *input, target_strike, current_strike, intern);
-                if std::ptr::eq(&*new_input, &**input) { 
-                    density 
-                } else { 
-                    intern(arena, DensityType::WeirdScaledSampler { 
-                        input: new_input, noise_name: noise_name.clone(), noise_to_sample: *noise_to_sample, rarity_value_mapper: rarity_value_mapper.clone() 
-                    }) 
+            DensityType::WeirdScaledSampler {
+                input,
+                noise_name,
+                noise_to_sample,
+                rarity_value_mapper,
+            } => {
+                let new_input =
+                    Self::replace_nth(arena, *input, target_strike, current_strike, intern);
+                if std::ptr::eq(&*new_input, &**input) {
+                    density
+                } else {
+                    intern(
+                        arena,
+                        DensityType::WeirdScaledSampler {
+                            input: new_input,
+                            noise_name: noise_name.clone(),
+                            noise_to_sample: *noise_to_sample,
+                            rarity_value_mapper: rarity_value_mapper.clone(),
+                        },
+                    )
                 }
             }
 
             // Ternary Nodes
-            DensityType::RangeChoice { input, min_inclusive, max_exclusive, when_in_range, when_out_of_range } => {
-                let new_input = Self::replace_nth(arena, *input, target_strike, current_strike, intern);
-                let new_in = Self::replace_nth(arena, *when_in_range, target_strike, current_strike, intern);
-                let new_out = Self::replace_nth(arena, *when_out_of_range, target_strike, current_strike, intern);
-                
-                if std::ptr::eq(&*new_input, &**input) && std::ptr::eq(&*new_in, &**when_in_range) && std::ptr::eq(&*new_out, &**when_out_of_range) {
+            DensityType::RangeChoice {
+                input,
+                min_inclusive,
+                max_exclusive,
+                when_in_range,
+                when_out_of_range,
+            } => {
+                let new_input =
+                    Self::replace_nth(arena, *input, target_strike, current_strike, intern);
+                let new_in =
+                    Self::replace_nth(arena, *when_in_range, target_strike, current_strike, intern);
+                let new_out = Self::replace_nth(
+                    arena,
+                    *when_out_of_range,
+                    target_strike,
+                    current_strike,
+                    intern,
+                );
+
+                if std::ptr::eq(&*new_input, &**input)
+                    && std::ptr::eq(&*new_in, &**when_in_range)
+                    && std::ptr::eq(&*new_out, &**when_out_of_range)
+                {
                     density
                 } else {
-                    intern(arena, DensityType::RangeChoice { input: new_input, min_inclusive: *min_inclusive, max_exclusive: *max_exclusive, when_in_range: new_in, when_out_of_range: new_out })
+                    intern(
+                        arena,
+                        DensityType::RangeChoice {
+                            input: new_input,
+                            min_inclusive: *min_inclusive,
+                            max_exclusive: *max_exclusive,
+                            when_in_range: new_in,
+                            when_out_of_range: new_out,
+                        },
+                    )
                 }
             }
-            DensityType::ShiftedNoise { name, noise, shift_x, shift_y, shift_z, xz_scale, y_scale } => {
-                let new_x = Self::replace_nth(arena, *shift_x, target_strike, current_strike, intern);
-                let new_y = Self::replace_nth(arena, *shift_y, target_strike, current_strike, intern);
-                let new_z = Self::replace_nth(arena, *shift_z, target_strike, current_strike, intern);
-                
-                if std::ptr::eq(&*new_x, &**shift_x) && std::ptr::eq(&*new_y, &**shift_y) && std::ptr::eq(&*new_z, &**shift_z) {
+            DensityType::ShiftedNoise {
+                name,
+                noise,
+                shift_x,
+                shift_y,
+                shift_z,
+                xz_scale,
+                y_scale,
+            } => {
+                let new_x =
+                    Self::replace_nth(arena, *shift_x, target_strike, current_strike, intern);
+                let new_y =
+                    Self::replace_nth(arena, *shift_y, target_strike, current_strike, intern);
+                let new_z =
+                    Self::replace_nth(arena, *shift_z, target_strike, current_strike, intern);
+
+                if std::ptr::eq(&*new_x, &**shift_x)
+                    && std::ptr::eq(&*new_y, &**shift_y)
+                    && std::ptr::eq(&*new_z, &**shift_z)
+                {
                     density
                 } else {
-                    intern(arena, DensityType::ShiftedNoise { name: name.clone(), noise: *noise, shift_x: new_x, shift_y: new_y, shift_z: new_z, xz_scale: *xz_scale, y_scale: *y_scale })
+                    intern(
+                        arena,
+                        DensityType::ShiftedNoise {
+                            name: name.clone(),
+                            noise: *noise,
+                            shift_x: new_x,
+                            shift_y: new_y,
+                            shift_z: new_z,
+                            xz_scale: *xz_scale,
+                            y_scale: *y_scale,
+                        },
+                    )
                 }
             }
 
             // Complex Spline Traversal
             DensityType::Spline { spline } => {
-                let new_spline = Self::replace_nth_spline(arena, *spline, target_strike, current_strike, intern);
+                let new_spline =
+                    Self::replace_nth_spline(arena, *spline, target_strike, current_strike, intern);
                 if std::ptr::eq(&*new_spline, &**spline) {
                     density
                 } else {
                     intern(arena, DensityType::Spline { spline: new_spline })
                 }
             }
-            
+
             _ => density,
         }
     }
@@ -245,15 +369,27 @@ impl ReplaceWithConstant {
         current_strike: &mut u32,
         intern: &impl Fn(&'m Bump, DensityType<'m>) -> Density<'m>,
     ) -> crate::parse::model::Spline<'m> {
-        let new_coord = Self::replace_nth(arena, spline.coordinate, target_strike, current_strike, intern);
-        
+        let new_coord = Self::replace_nth(
+            arena,
+            spline.coordinate,
+            target_strike,
+            current_strike,
+            intern,
+        );
+
         let mut points_changed = false;
         let mut new_points = Vec::new();
-        
+
         for (i, pt) in spline.spline_points.iter().enumerate() {
             if let SplineValue::Spline(inner_s) = &pt.value {
-                let new_inner = Self::replace_nth_spline(arena, *inner_s, target_strike, current_strike, intern);
-                
+                let new_inner = Self::replace_nth_spline(
+                    arena,
+                    *inner_s,
+                    target_strike,
+                    current_strike,
+                    intern,
+                );
+
                 if !std::ptr::eq(&*new_inner, &**inner_s) {
                     if !points_changed {
                         new_points.extend_from_slice(&spline.spline_points[..i]);
@@ -271,17 +407,17 @@ impl ReplaceWithConstant {
                 new_points.push(pt.clone());
             }
         }
-        
+
         if std::ptr::eq(&*new_coord, &*spline.coordinate) && !points_changed {
             return spline; // No changes, return the identical pointer
         }
-        
+
         let final_points = if points_changed {
             arena.alloc_slice_clone(&new_points)
         } else {
             spline.spline_points
         };
-        
+
         arena.alloc(SplineType {
             coordinate: new_coord,
             spline_points: final_points,
@@ -321,14 +457,16 @@ impl<'m> ShrinkMethod<'m> for ReplaceWithConstant {
         source: DensitySource<'m>,
     ) -> DensitySource<'m> {
         let (root_density, dimensions) = match source {
-            DensitySource::MultiSamplingDensity { density, dimensions, is_biome_coordinate } => (density, Some((dimensions, is_biome_coordinate))),
+            DensitySource::MultiSamplingDensity {
+                density,
+                dimensions,
+                coordinate_type,
+            } => (density, Some((dimensions, coordinate_type))),
             DensitySource::SingleSamplingDensity { density } => (density, None),
         };
 
         // Initialize the interner wrapping logic exactly once
-        let interner = |arena: &'m Bump, dt: DensityType<'m>| -> Density<'m> {
-            arena.alloc(dt)
-        };
+        let interner = |arena: &'m Bump, dt: DensityType<'m>| -> Density<'m> { arena.alloc(dt) };
 
         let mut current_strike = 0;
         let new_density = Self::replace_nth(
@@ -340,10 +478,10 @@ impl<'m> ShrinkMethod<'m> for ReplaceWithConstant {
         );
 
         match dimensions {
-            Some((dim, is_biome_coordinate)) => DensitySource::MultiSamplingDensity {
+            Some((dim, coordinate_type)) => DensitySource::MultiSamplingDensity {
                 density: new_density,
                 dimensions: dim,
-                is_biome_coordinate,
+                coordinate_type,
             },
             None => DensitySource::SingleSamplingDensity {
                 density: new_density,

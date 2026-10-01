@@ -1,4 +1,3 @@
-
 use crate::{
     parse::model::NormalNoise,
     transform_spmt::{density::make_rpos3, newvar},
@@ -103,12 +102,14 @@ pub fn lower_normal_noise<'m>(
             function_name: "perlin".into(),
             parameters: vec![rpos3fxs[i].clone(), perm1_var],
             parameter_types: vec![VariableType::Vec3, VariableType::PermutationTable],
+            return_type: VariableType::F64,
         };
         let scaled_rpos3f = rpos3fxs2[i].clone();
         let perlin2 = Expression::ExternCall {
             function_name: "perlin".into(),
             parameters: vec![scaled_rpos3f, perm2_var],
             parameter_types: vec![VariableType::Vec3, VariableType::PermutationTable],
+            return_type: VariableType::F64,
         };
         // let noise_sum = Expression::BinaryOp {
         //     op: BinaryOperator::Add,
@@ -132,14 +133,16 @@ pub fn lower_normal_noise<'m>(
         };
         body.push(Statement::Assign {
             target: result.clone(),
-            value: Expression::BinaryOp { op: BinaryOperator::Add,
+            value: Expression::BinaryOp {
+                op: BinaryOperator::Add,
                 left: Box::new(Expression::Variable(result.clone())),
                 right: Box::new(scaled_noise1),
             },
         });
         body.push(Statement::Assign {
             target: result.clone(),
-            value: Expression::BinaryOp { op: BinaryOperator::Add,
+            value: Expression::BinaryOp {
+                op: BinaryOperator::Add,
                 left: Box::new(Expression::Variable(result.clone())),
                 right: Box::new(scaled_noise2),
             },
@@ -295,6 +298,7 @@ pub fn lower_old_blended_noise<'m>(
             VariableType::F64,
             VariableType::F64,
         ],
+        return_type: VariableType::F64,
     };
     (perlin_call, perm_table_input)
 }

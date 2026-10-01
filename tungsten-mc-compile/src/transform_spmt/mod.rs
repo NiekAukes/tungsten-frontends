@@ -1,13 +1,21 @@
 use crate::{
-    parse::model::{Density, DensitySource, DensityType, NoiseGeneratorSettings, NoiseSettings},
+    parse::model::{
+        CoordinateType, Density, DensitySource, DensityType, NoiseGeneratorSettings, NoiseSettings,
+    },
     transform_spmt::density::{DensityBuilder, DensityKey, NormalNoiseKey},
 };
 
 use tungsten_wg::{
-    orchestrate::Scale, spmt::model::{DensityFunctionRef, MainDensityFunction, Name, SPMT, Var, Variable, VariableType},
+    orchestrate::Scale,
+    spmt::builder::SPMTBuilder,
+    spmt::model::{
+        DensityFunctionRef, DensityInput, MainDensityFunction, Name, Var, Variable, VariableType,
+        SPMT,
+    },
 };
 
 pub mod density;
+pub mod find_top_surface;
 pub mod noise;
 pub mod spline;
 
@@ -58,8 +66,12 @@ impl ScalingSet {
         if !add {
             return self;
         }
-        ScalingSet { 
-            dimensions: (self.dimensions.0 + 1, self.dimensions.1, self.dimensions.2 + 1),
+        ScalingSet {
+            dimensions: (
+                self.dimensions.0 + 1,
+                self.dimensions.1,
+                self.dimensions.2 + 1,
+            ),
             scaled_position: self.scaled_position,
             scaled_origin: self.scaled_origin,
         }
@@ -190,7 +202,7 @@ impl<'a, 'm> Transformer<'a, 'm> {
                 DensitySource::MultiSamplingDensity {
                     density,
                     dimensions,
-                    is_biome_coordinate,
+                    coordinate_type,
                 } => {
                     let sampling_set = {
                         let bs = self.builder_state.as_mut().unwrap();
@@ -200,30 +212,55 @@ impl<'a, 'm> Transformer<'a, 'm> {
                         // bs.original_scaled_origin = (1.0, 1.0, 1.0);
                         // bs.working_scaled_position = (1.0, 1.0, 1.0);
                         // bs.original_scaled_position = (1.0, 1.0, 1.0);
-                        
-                        // 
-                        if is_biome_coordinate {
-                            bs.working_set = ScalingSet { 
-                                dimensions,
-                                scaled_origin: (1.0, 1.0, 1.0),
-                                scaled_position: (4.0, noise_generator.noise.size_vertical as f64 * 4.0, 4.0),
-                            };
-                            bs.flatcache_set = ScalingSet { 
-                            dimensions: (dimensions.0, 1, dimensions.2),
-                            scaled_origin: (1.0, 0.0, 1.0),
-                            scaled_position: (4.0, 0.0, 4.0),
-                        };
-                        } else {
-                            bs.working_set = ScalingSet { 
-                                dimensions,
-                                ..Default::default()
-                            };
-                            bs.flatcache_set = ScalingSet { 
-                                dimensions: (dimensions.0 >> 2, 1, dimensions.2 >> 2),
-                                scaled_origin: (1.0, 0.0, 1.0),
-                                scaled_position: (4.0, 0.0, 4.0),
-                                ..Default::default()
-                            };
+
+                        //
+                        match coordinate_type {
+                            CoordinateType::Biome => {
+                                bs.working_set = ScalingSet {
+                                    dimensions,
+                                    scaled_origin: (1.0, 1.0, 1.0),
+                                    scaled_position: (
+                                        4.0,
+                                        noise_generator.noise.size_vertical as f64 * 4.0,
+                                        4.0,
+                                    ),
+                                };
+                                bs.flatcache_set = ScalingSet {
+                                    dimensions: (dimensions.0, 1, dimensions.2),
+                                    scaled_origin: (1.0, 0.0, 1.0),
+                                    scaled_position: (4.0, 0.0, 4.0),
+                                };
+                            }
+                            CoordinateType::Terrain => {
+                                bs.working_set = ScalingSet {
+                                    dimensions,
+                                    ..Default::default()
+                                };
+                                bs.flatcache_set = ScalingSet {
+                                    dimensions: (dimensions.0 >> 2, 1, dimensions.2 >> 2),
+                                    scaled_origin: (1.0, 0.0, 1.0),
+                                    scaled_position: (4.0, 0.0, 4.0),
+                                    ..Default::default()
+                                };
+                            }
+                            CoordinateType::PreliminarySurface => {
+                                assert!(dimensions.1 == 1);
+                                bs.working_set = ScalingSet {
+                                    dimensions,
+                                    scaled_origin: (1.0, 1.0, 1.0),
+                                    scaled_position: (
+                                        4.0,
+                                        noise_generator.noise.size_vertical as f64 * 4.0,
+                                        4.0,
+                                    ),
+                                };
+                                bs.flatcache_set = ScalingSet {
+                                    dimensions: (dimensions.0, 1, dimensions.2),
+                                    scaled_origin: (1.0, 0.0, 1.0),
+                                    scaled_position: (4.0, 0.0, 4.0),
+                                };
+                                bs.known_y_sample_point = Some(0);
+                            }
                         }
                         let sampling_set = bs.working_set.clone();
                         bs.sampling_set = bs.working_set.clone();
@@ -231,7 +268,8 @@ impl<'a, 'm> Transformer<'a, 'm> {
                         sampling_set
                     };
 
-                    let density_function = self.lower_density_function(density);
+                    let density_function =
+                        self.lower_density_function(density, &noise_generator.noise);
 
                     //self.final_model.density_functions.push(density_function);
                     self.final_model
@@ -271,7 +309,11 @@ impl<'a, 'm> Transformer<'a, 'm> {
         self.final_model
     }
 
-    pub fn lower_density_function(&mut self, density: Density<'a>) -> DensityFunctionRef<'m> {
+    pub fn lower_density_function(
+        &mut self,
+        density: Density<'a>,
+        noise_settings: &'a NoiseSettings,
+    ) -> DensityFunctionRef<'m> {
         let bs = self.builder_state.take().unwrap();
         if let Some(cached) = bs.get_cached_density(&density) {
             let ret = cached.clone();
@@ -291,7 +333,7 @@ impl<'a, 'm> Transformer<'a, 'm> {
         }
 
         // create a density function builder
-        let mut builder = DensityBuilder::new_named(self.arena, bs, name);
+        let mut builder = DensityBuilder::new_named(self.arena, bs, noise_settings, name);
         // lower the density into the builder
         let r = builder.lower_density(inner_density);
         // build the density function

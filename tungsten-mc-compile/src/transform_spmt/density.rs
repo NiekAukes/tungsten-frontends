@@ -1,17 +1,22 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    parse::{model::{Density, DensityType, NormalNoise}}, transform_spmt::{
-        BuilderState, anonvar, newvar,
+    parse::model::{Density, DensityType, NoiseSettings, NormalNoise},
+    transform_spmt::{
+        anonvar, newvar,
         noise::{lower_normal_noise, lower_old_blended_noise},
-        prefixvar,
+        prefixvar, BuilderState,
     },
 };
 use tungsten_wg::{
     orchestrate::Scale,
-    spmt::model::{
-        BinaryOperator, DensityFunction, DensityFunctionRef, DensityInput, Expression, Function,
-        FunctionRef, Name, PermutationTableInput, Statement, Var, Variable, VariableType,
+    spmt::{
+        builder::SPMTBuilder,
+        model::{
+            BinaryOperator, DensityFunction, DensityFunctionRef, DensityInput, Expression,
+            Function, FunctionRef, Name, PermutationTableInput, Statement, Var, Variable,
+            VariableType,
+        },
     },
 };
 
@@ -50,11 +55,11 @@ impl Default for BuilderSettings {
 /// This is used to build the density functions for the model,
 /// Statements can be added to the builder
 pub struct DensityBuilder<'a, 'm> {
-    density_function: DensityFunction<'m>,
+    pub(crate) density_function: DensityFunction<'m>,
     function: Option<Function<'m>>,
     pub arena: &'m bumpalo::Bump,
 
-    builder_state: Option<BuilderState<'a, 'm>>,
+    pub(crate) builder_state: Option<BuilderState<'a, 'm>>,
     pub(crate) builder_settings: BuilderSettings,
 
     density_function_inputs: HashMap<DensityKey<'a>, DensityInput<'m>>,
@@ -65,10 +70,16 @@ pub struct DensityBuilder<'a, 'm> {
     pub(crate) p: Var<'m>,
     pub(crate) origin_scale: Var<'m>,
     pub(crate) position_scale: Var<'m>,
+
+    pub(crate) noise_settings: &'a NoiseSettings,
 }
 
 impl<'a, 'm> DensityBuilder<'a, 'm> {
-    pub fn new(arena: &'m bumpalo::Bump, state: BuilderState<'a, 'm>) -> Self {
+    pub fn new(
+        arena: &'m bumpalo::Bump,
+        state: BuilderState<'a, 'm>,
+        noise_settings: &'a NoiseSettings,
+    ) -> Self {
         let mut s = Self {
             density_function: DensityFunction {
                 body: Vec::new(),
@@ -94,6 +105,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             origin: newvar(arena, "origin", VariableType::Vec3),
             origin_scale: newvar(arena, "origin_scale", VariableType::Vec3),
             position_scale: newvar(arena, "position_scale", VariableType::Vec3),
+            noise_settings,
         };
 
         s.add_variable(s.rpos3.clone());
@@ -113,9 +125,10 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
     pub fn new_named(
         arena: &'m bumpalo::Bump,
         state: BuilderState<'a, 'm>,
+        noise_settings: &'a NoiseSettings,
         canonical_name: Option<String>,
     ) -> Self {
-        let mut s = Self::new(arena, state);
+        let mut s = Self::new(arena, state, noise_settings);
         s.density_function.canonical_name = canonical_name;
         s
     }
@@ -175,13 +188,6 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         }
 
         function_ref
-    }
-
-    pub fn add_statement(&mut self, statement: Statement<'m>) {
-        match &mut self.function {
-            Some(func) => func.body.push(statement),
-            None => self.density_function.body.push(statement),
-        }
     }
 
     pub fn add_variable(&mut self, variable: Var<'m>) {
@@ -289,29 +295,34 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
 
     pub fn lower_old_blended_noise_as_density(
         &mut self,
-        density: Density<'a>
+        density: Density<'a>,
     ) -> DensityFunctionRef<'m> {
         // lower the old blended noise into a density function
         let lower_function = &|builder: &mut Self, density: Density<'a>| {
-            let DensityType::OldBlendedNoise { 
-                smear_scale_multiplier, 
-                xz_factor, 
-                xz_scale, 
-                y_factor, 
-                y_scale } = *density else {
-                    panic!("Expected DensityType::OldBlendedNoise");
-                };
-            
-            let (expr, perm_table) = lower_old_blended_noise(
-                    builder.rpos3.clone(),
-                    smear_scale_multiplier,
-                    xz_factor,
-                    xz_scale,
-                    y_factor,
-                    y_scale,
-                );
+            let DensityType::OldBlendedNoise {
+                smear_scale_multiplier,
+                xz_factor,
+                xz_scale,
+                y_factor,
+                y_scale,
+            } = *density
+            else {
+                panic!("Expected DensityType::OldBlendedNoise");
+            };
 
-            builder.density_function.permutation_table_inputs.push(perm_table);
+            let (expr, perm_table) = lower_old_blended_noise(
+                builder.rpos3.clone(),
+                smear_scale_multiplier,
+                xz_factor,
+                xz_scale,
+                y_factor,
+                y_scale,
+            );
+
+            builder
+                .density_function
+                .permutation_table_inputs
+                .push(perm_table);
             expr
         };
         // let mut density_function: DensityFunction<'m> = DensityFunction {
@@ -324,7 +335,11 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         //     constants: vec![],
         // };
 
-        self._lower_density_shader_inner(density, Some("old_blended_noise".to_string()), lower_function)
+        self._lower_density_shader_inner(
+            density,
+            Some("old_blended_noise".to_string()),
+            lower_function,
+        )
     }
 
     pub fn lower_noise_and_mark(
@@ -338,7 +353,12 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         // check if we already have a density function for this noise
         // create a scaled noise struct to use as a key for the cache
 
-        let mut scaled_origin = self.builder_state.as_ref().unwrap().working_set.scaled_origin;
+        let mut scaled_origin = self
+            .builder_state
+            .as_ref()
+            .unwrap()
+            .working_set
+            .scaled_origin;
         scaled_origin.0 *= x_scale;
         scaled_origin.1 *= y_scale;
         scaled_origin.2 *= z_scale;
@@ -413,7 +433,12 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         } else {
             // lower the density into an expression
             // create a new builder to build the density function
-            let mut builder = DensityBuilder::new_named(self.arena, bs, canonical_name.clone());
+            let mut builder = DensityBuilder::new_named(
+                self.arena,
+                bs,
+                self.noise_settings,
+                canonical_name.clone(),
+            );
             //let r = builder.lower_density(density);
             let r = lower_function(&mut builder, density);
             let (density_function, _helpers, bs_returned) = builder.finish(r);
@@ -481,8 +506,18 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         );
 
         let dimensions = self.builder_state.as_ref().unwrap().working_set.dimensions;
-        let scaled_origin = self.builder_state.as_ref().unwrap().working_set.scaled_origin;
-        let scaled_position = self.builder_state.as_ref().unwrap().working_set.scaled_position;
+        let scaled_origin = self
+            .builder_state
+            .as_ref()
+            .unwrap()
+            .working_set
+            .scaled_origin;
+        let scaled_position = self
+            .builder_state
+            .as_ref()
+            .unwrap()
+            .working_set
+            .scaled_position;
         let input = DensityInput {
             var: v.clone(),
             density_function: density_function_ref.clone(),
@@ -579,10 +614,18 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 density,
                 dimensions: self.builder_state.as_ref().unwrap().working_set.dimensions,
                 scaled_origin: Scale::from(
-                    self.builder_state.as_ref().unwrap().working_set.scaled_origin,
+                    self.builder_state
+                        .as_ref()
+                        .unwrap()
+                        .working_set
+                        .scaled_origin,
                 ),
                 scaled_position: Scale::from(
-                    self.builder_state.as_ref().unwrap().working_set.scaled_position,
+                    self.builder_state
+                        .as_ref()
+                        .unwrap()
+                        .working_set
+                        .scaled_position,
                 ),
             },
             input,
@@ -664,10 +707,20 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                             parameters: vec![
                                 Expression::Variable(self.p.clone()),
                                 Expression::Int(
-                                    self.builder_state.as_ref().unwrap().working_set.dimensions.0,
+                                    self.builder_state
+                                        .as_ref()
+                                        .unwrap()
+                                        .working_set
+                                        .dimensions
+                                        .0,
                                 ),
                                 Expression::Int(
-                                    self.builder_state.as_ref().unwrap().working_set.dimensions.2,
+                                    self.builder_state
+                                        .as_ref()
+                                        .unwrap()
+                                        .working_set
+                                        .dimensions
+                                        .2,
                                 ),
                             ],
                             parameter_types: vec![
@@ -675,6 +728,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                                 VariableType::I32,
                                 VariableType::I32,
                             ],
+                            return_type: VariableType::I32,
                         })),
                     );
                 }
@@ -698,10 +752,20 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                         parameters: vec![
                             Expression::Variable(self.p.clone()),
                             Expression::Int(
-                                self.builder_state.as_ref().unwrap().working_set.dimensions.0,
+                                self.builder_state
+                                    .as_ref()
+                                    .unwrap()
+                                    .working_set
+                                    .dimensions
+                                    .0,
                             ),
                             Expression::Int(
-                                self.builder_state.as_ref().unwrap().working_set.dimensions.2,
+                                self.builder_state
+                                    .as_ref()
+                                    .unwrap()
+                                    .working_set
+                                    .dimensions
+                                    .2,
                             ),
                         ],
                         parameter_types: vec![
@@ -709,6 +773,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                             VariableType::I32,
                             VariableType::I32,
                         ],
+                        return_type: VariableType::I32,
                     })),
                 )
             }
@@ -838,6 +903,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                                         VariableType::I32,
                                         VariableType::I32,
                                     ],
+                                    return_type: VariableType::I32,
                                 })),
                             ));
                         }
@@ -848,16 +914,19 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     function_name: format!("xfract{}", interpolation_xz),
                     parameters: vec![Expression::Variable(self.p.clone())],
                     parameter_types: vec![VariableType::Pos3],
+                    return_type: VariableType::F64,
                 };
                 let fract_y = Expression::ExternCall {
                     function_name: format!("yfract{}", interpolation_y),
                     parameters: vec![Expression::Variable(self.p.clone())],
                     parameter_types: vec![VariableType::Pos3],
+                    return_type: VariableType::F64,
                 };
                 let fract_z = Expression::ExternCall {
                     function_name: format!("zfract{}", interpolation_xz),
                     parameters: vec![Expression::Variable(self.p.clone())],
                     parameter_types: vec![VariableType::Pos3],
+                    return_type: VariableType::F64,
                 };
                 args.push(fract_x);
                 args.push(fract_y);
@@ -879,6 +948,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                         VariableType::F64,
                         VariableType::F64,
                     ],
+                    return_type: VariableType::F64,
                 }
             }
             DensityType::FlatCache { argument } => {
@@ -889,13 +959,22 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     // return the density variable for the input, with an index of (x >> 2, z >> 2)
                     // whether to use biome column index or identity depends on the working dimensions. If the xz dimensions are 1, then we are already effectively indexed by biome column, so we can just return the cached value directly. Otherwise, we need to index it by biome column.
                     let working_dims = self.builder_state.as_ref().unwrap().working_set.dimensions;
-                    let flat_dims = self.builder_state
+                    let flat_dims = self
+                        .builder_state
                         .as_ref()
                         .unwrap()
                         .flatcache_set
-                        .interpolation(self.builder_state.as_ref().unwrap().add_interpolation_dimension)
+                        .interpolation(
+                            self.builder_state
+                                .as_ref()
+                                .unwrap()
+                                .add_interpolation_dimension,
+                        )
                         .dimensions;
-                    println!("working_dims: {:?}, flat_dims: {:?}", working_dims, flat_dims);
+                    println!(
+                        "working_dims: {:?}, flat_dims: {:?}",
+                        working_dims, flat_dims
+                    );
                     if working_dims == flat_dims {
                         return Expression::DensityVariable(cached.clone(), None);
                     } else if working_dims.0 == flat_dims.0 && working_dims.2 == flat_dims.2 {
@@ -914,6 +993,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                                     VariableType::I32,
                                     VariableType::I32,
                                 ],
+                                return_type: VariableType::I32,
                             })),
                         );
                     } else {
@@ -923,6 +1003,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                                 function_name: "biome_column_index".into(),
                                 parameters: vec![Expression::Variable(self.p.clone())],
                                 parameter_types: vec![VariableType::Pos3],
+                                return_type: VariableType::I32,
                             })),
                         );
                     }
@@ -936,7 +1017,9 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
 
                 let mut bs = self.builder_state.take().unwrap();
                 let old_working_set = bs.working_set;
-                let flat_set = bs.flatcache_set.interpolation(bs.add_interpolation_dimension);
+                let flat_set = bs
+                    .flatcache_set
+                    .interpolation(bs.add_interpolation_dimension);
                 bs.working_set = flat_set;
                 bs.known_y_sample_point = Some(0); // y is set to 0
                 self.builder_state = Some(bs);
@@ -971,6 +1054,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                                 VariableType::I32,
                                 VariableType::I32,
                             ],
+                            return_type: VariableType::I32,
                         })),
                     );
                 } else {
@@ -980,6 +1064,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                             function_name: "biome_column_index".into(),
                             parameters: vec![Expression::Variable(self.p.clone())],
                             parameter_types: vec![VariableType::Pos3],
+                            return_type: VariableType::I32,
                         })),
                     );
                 }
@@ -1020,6 +1105,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     function_name: "clamp".to_string(),
                     parameters: vec![normal_y, Expression::Double(0.0), Expression::Double(1.0)],
                     parameter_types: vec![VariableType::F64, VariableType::F64, VariableType::F64],
+                    return_type: VariableType::F64,
                 };
 
                 // 3. Create clampedY variable
@@ -1055,10 +1141,8 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 // return the density variable for the input
                 Expression::DensityVariable(input, None)
             }
-            
-            DensityType::OldBlendedNoise {
-                ..
-            } => {
+
+            DensityType::OldBlendedNoise { .. } => {
                 if let Some(cached) = self.get_function_cached_density_input(&density) {
                     return Expression::DensityVariable(cached.clone(), None);
                 }
@@ -1074,7 +1158,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 //     .push(perm_table);
                 // expr
                 let density_function_ref = self.lower_old_blended_noise_as_density(density);
-                    
+
                 let v = anonvar(self.arena, VariableType::DensityInput);
                 let mut bs = self.builder_state.take().unwrap();
                 let dimensions = bs.working_set.dimensions;
@@ -1102,9 +1186,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 return Expression::DensityVariable(input, None);
             }
 
-            DensityType::ShiftedNoise { .. } => {
-                self.lower_shifted_noise(density, None)
-            }
+            DensityType::ShiftedNoise { .. } => self.lower_shifted_noise(density, None),
             DensityType::ShiftA { argument, ref name } => {
                 // Samples a noise at (x/4, 0, z/4), then multiplies it by 4.
                 let x_shift = Expression::BinaryOp {
@@ -1143,10 +1225,19 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 //     DensityFunctionRef::new(self.arena.alloc(argument_density_function));
                 let old_dimensions = self.builder_state.as_ref().unwrap().working_set.dimensions;
                 let dimensions = (old_dimensions.0, 1, old_dimensions.2);
-                let old_scaled_origin = self.builder_state.as_ref().unwrap().working_set.scaled_origin;
+                let old_scaled_origin = self
+                    .builder_state
+                    .as_ref()
+                    .unwrap()
+                    .working_set
+                    .scaled_origin;
                 let scaled_origin = (old_scaled_origin.0 / 4.0, 0.0, old_scaled_origin.2 / 4.0);
-                let old_scaled_position =
-                    self.builder_state.as_ref().unwrap().working_set.scaled_position;
+                let old_scaled_position = self
+                    .builder_state
+                    .as_ref()
+                    .unwrap()
+                    .working_set
+                    .scaled_position;
                 let scaled_position = (
                     old_scaled_position.0 / 4.0,
                     0.0,
@@ -1170,6 +1261,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                         Expression::Int(old_dimensions.1),
                     ],
                     parameter_types: vec![VariableType::Pos3, VariableType::I32, VariableType::I32],
+                    return_type: VariableType::I32,
                 });
 
                 self.builder_state.as_mut().map(|bs| {
@@ -1305,6 +1397,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     function_name: "abs".into(),
                     parameters: vec![arg_expr],
                     parameter_types: vec![VariableType::F64],
+                    return_type: VariableType::F64,
                 }
             }
             DensityType::Min { left, right } => {
@@ -1314,6 +1407,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     function_name: "min".into(),
                     parameters: vec![left_expr, right_expr],
                     parameter_types: vec![VariableType::F64, VariableType::F64],
+                    return_type: VariableType::F64,
                 }
             }
             DensityType::Max { left, right } => {
@@ -1323,6 +1417,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     function_name: "max".into(),
                     parameters: vec![left_expr, right_expr],
                     parameter_types: vec![VariableType::F64, VariableType::F64],
+                    return_type: VariableType::F64,
                 }
             }
             DensityType::RangeChoice {
@@ -1439,11 +1534,13 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                         function_name: "scale_tunnels".into(),
                         parameters: vec![input_expr],
                         parameter_types: vec![VariableType::F64],
+                        return_type: VariableType::F64,
                     },
                     "type_2" => Expression::ExternCall {
                         function_name: "scale_caves".into(),
                         parameters: vec![input_expr],
                         parameter_types: vec![VariableType::F64],
+                        return_type: VariableType::F64,
                     },
                     _ => panic!("Unknown rarity value mapper type"),
                 };
@@ -1459,8 +1556,18 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 let id = self.noise_inputs.len();
                 let cname = format!("{}_rarity_mapped_{}", name, id);
 
-                let scaled_origin = self.builder_state.as_ref().unwrap().working_set.scaled_origin;
-                let scaled_position = self.builder_state.as_ref().unwrap().working_set.scaled_position;
+                let scaled_origin = self
+                    .builder_state
+                    .as_ref()
+                    .unwrap()
+                    .working_set
+                    .scaled_origin;
+                let scaled_position = self
+                    .builder_state
+                    .as_ref()
+                    .unwrap()
+                    .working_set
+                    .scaled_position;
 
                 // Lower noise but don't mark it, we just want the density function reference
                 let (noise_function_ref, perm_tables) = self.lower_noise(
@@ -1502,6 +1609,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                         function_name: "abs".into(),
                         parameters: vec![noise_call],
                         parameter_types: vec![VariableType::F64],
+                        return_type: VariableType::F64,
                     }),
                 }
             }
@@ -1555,10 +1663,24 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
 
                 //self.lower_density(argument)
             }
+            DensityType::FindTopSurface {
+                density,
+                cell_height,
+                lower_bound,
+                upper_bound,
+            } => self.find_top_surface(density, cell_height, lower_bound, upper_bound),
+            DensityType::Invert { argument } => {
+                let arg_expr = self.lower_density(argument);
+                Expression::Double(1.0) / arg_expr
+            }
         }
     }
 
-    fn lower_shifted_noise(&mut self, density: Density<'a>, _canonical_name: Option<String>) -> Expression<'m> {
+    fn lower_shifted_noise(
+        &mut self,
+        density: Density<'a>,
+        _canonical_name: Option<String>,
+    ) -> Expression<'m> {
         // 0. initiate caching
         let density_input = self.lower_density_input(
             density,
@@ -1631,13 +1753,8 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 builder.builder_state = Some(bs);
 
                 // 4. Lower noise but don't mark it, we just want the density function reference
-                let (noise_function_ref, perm_tables) = builder.lower_noise(
-                    noise,
-                    scaled_origin,
-                    scaled_position,
-                    &name,
-                    cname,
-                );
+                let (noise_function_ref, perm_tables) =
+                    builder.lower_noise(noise, scaled_origin, scaled_position, &name, cname);
                 // add it as a helper function
                 builder.helper_functions.push(noise_function_ref.clone());
                 let perm_tables_args = perm_tables
@@ -1692,6 +1809,7 @@ pub fn make_clamp(input: Expression, min: f64, max: f64) -> Expression {
         function_name: "clamp".into(),
         parameters: vec![input, Expression::Double(min), Expression::Double(max)],
         parameter_types: vec![VariableType::F64, VariableType::F64, VariableType::F64],
+        return_type: VariableType::F64,
     }
 }
 
@@ -1866,31 +1984,98 @@ impl NamedDensity for DensityType<'_> {
             DensityType::Square { .. } => "Square".into(),
             DensityType::Cube { .. } => "Cube".into(),
             DensityType::NamedDensityReference { .. } => "NamedDensityReference".into(),
-            // DensityType::Noise { name, noise, xz_scale, y_scale } => todo!(),
-            // DensityType::Add { left, right } => todo!(),
-            // DensityType::Multiply { left, right } => todo!(),
-            // DensityType::Cache2d { argument } => todo!(),
-            // DensityType::Squeeze { argument } => todo!(),
-            // DensityType::Interpolated { argument } => todo!(),
-            // DensityType::EndIslands => todo!(),
-            // DensityType::YClampedGradient { from_y, to_y, from_value, to_value } => todo!(),
-            // DensityType::FlatCache { argument } => todo!(),
-            // DensityType::OldBlendedNoise { smear_scale_multiplier, xz_factor, xz_scale, y_factor, y_scale } => todo!(),
-            // DensityType::ShiftedNoise { name, noise, shift_x, shift_y, shift_z, xz_scale, y_scale } => todo!(),
-            // DensityType::ShiftA { argument, name } => todo!(),
-            // DensityType::ShiftB { argument, name } => todo!(),
-            // DensityType::CacheOnce { argument } => todo!(),
-            // DensityType::Spline { spline } => todo!(),
-            // DensityType::Abs { argument } => todo!(),
-            // DensityType::Min { left, right } => todo!(),
-            // DensityType::Max { left, right } => todo!(),
-            // DensityType::RangeChoice { input, min_inclusive, max_exclusive, when_in_range, when_out_of_range } => todo!(),
-            // DensityType::XNegative { argument, neg_x_multiplier } => todo!(),
-            // DensityType::Clamp { input, min, max } => todo!(),
-            // DensityType::WeirdScaledSampler { input, noise_name, noise_to_sample, rarity_value_mapper } => todo!(),
-            // DensityType::Square { argument } => todo!(),
-            // DensityType::Cube { argument } => todo!(),
-            // DensityType::NamedDensityReference { name, argument } => todo!(),
+            DensityType::FindTopSurface { .. } => "FindTopSurface".into(),
+            DensityType::Invert { .. } => "Invert".into(),
+        }
+    }
+}
+
+impl<'a, 'm> SPMTBuilder<'m> for DensityBuilder<'a, 'm> {
+    fn named(mut self, name: impl Into<String>) -> Self {
+        self.density_function.canonical_name = Some(name.into());
+        self
+    }
+
+    fn with_source_hash(mut self, hash: u64) -> Self {
+        self.density_function.source_hash = hash;
+        self
+    }
+
+    fn returns(self, _t: VariableType) -> Self {
+        // DensityBuilder returns an expression, not a specific type at the builder level
+        self
+    }
+
+    fn set_body(&mut self, body: Vec<tungsten_wg::spmt::Statement<'m>>) {
+        self.density_function.body = body;
+    }
+
+    fn add_statement(&mut self, statement: Statement<'m>) {
+        match &mut self.function {
+            Some(func) => func.body.push(statement),
+            None => self.density_function.body.push(statement),
+        }
+    }
+
+    fn extend_statements(&mut self, stmts: Vec<Statement<'m>>) {
+        match &mut self.function {
+            Some(func) => func.body.extend(stmts),
+            None => self.density_function.body.extend(stmts),
+        }
+    }
+
+    fn param(&mut self, _name: &str, _t: VariableType) -> Var<'m> {
+        // DensityBuilder doesn't support parameters in the traditional sense
+        // This would be handled through density inputs instead
+        panic!("DensityBuilder does not support traditional parameters")
+    }
+
+    fn alloc_var(&self, name: Name, t: VariableType) -> Var<'m> {
+        Var::new(self.arena.alloc(Variable { name, t }))
+    }
+
+    fn named_var(&self, name: &str, t: VariableType) -> Var<'m> {
+        // Create a named variable, typically checked for duplicates elsewhere
+        self.alloc_var(Name::Named(name.to_owned()), t)
+    }
+
+    fn temp(&self, prefix: &str, t: VariableType) -> Var<'m> {
+        self.alloc_var(Name::Prefixed(prefix.to_owned()), t)
+    }
+
+    fn local(&self, name: &str, t: VariableType) -> Var<'m> {
+        let var = self.named_var(name, t);
+        var
+    }
+
+    fn constant(
+        &self,
+        name: &str,
+        t: VariableType,
+        _value: impl Into<tungsten_wg::spmt::Expression<'m>>,
+    ) -> Var<'m> {
+        panic!("DensityBuilder does not support constants via the constant() method, use add_constant() instead");
+    }
+
+    fn density(
+        &self,
+        func: DensityFunctionRef<'m>,
+        scaled_origin: (f64, f64, f64),
+        scaled_position: (f64, f64, f64),
+        dimensions: (i32, i32, i32),
+    ) -> DensityInput<'m> {
+        // Create a new density input variable
+        static COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let id = COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let var_name = format!("in_density_{}", id);
+        let var = self.alloc_var(Name::Named(var_name), VariableType::DensityInput);
+
+        DensityInput {
+            var,
+            density_function: func,
+            scaled_origin,
+            scaled_position,
+            dimensions,
         }
     }
 }

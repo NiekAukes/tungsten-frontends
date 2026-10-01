@@ -12,7 +12,7 @@ pub struct NoiseRouter<'m> {
     pub final_density: DensitySource<'m>,
     pub fluid_level_floodedness: DensitySource<'m>,
     pub fluid_level_spread: DensitySource<'m>,
-    pub initial_density_without_jaggedness: DensitySource<'m>,
+    pub preliminary_surface_level: DensitySource<'m>,
     pub lava: DensitySource<'m>,
     pub ridges: DensitySource<'m>,
     pub temperature: DensitySource<'m>,
@@ -42,11 +42,18 @@ pub struct NoiseSettings {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub enum CoordinateType {
+    PreliminarySurface,
+    Biome,
+    Terrain,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum DensitySource<'m> {
     MultiSamplingDensity {
         density: Density<'m>,
         dimensions: (i32, i32, i32),
-        is_biome_coordinate: bool,
+        coordinate_type: CoordinateType,
     },
     SingleSamplingDensity {
         density: Density<'m>,
@@ -185,6 +192,18 @@ pub enum DensityType<'m> {
     Cube {
         argument: Density<'m>,
     },
+
+    Invert {
+        argument: Density<'m>,
+    },
+
+    FindTopSurface {
+        density: Density<'m>,
+        cell_height: i32,
+        lower_bound: i32,
+        upper_bound: Density<'m>,
+    },
+
     NamedDensityReference {
         name: Interned<'m, String>,
         argument: Density<'m>,
@@ -376,6 +395,23 @@ impl Hash for DensityType<'_> {
                 26.hash(state);
                 argument.hash(state);
                 neg_x_multiplier.to_bits().hash(state);
+            }
+            DensityType::Invert { argument } => {
+                27.hash(state);
+                argument.hash(state);
+            }
+
+            DensityType::FindTopSurface {
+                density,
+                cell_height,
+                lower_bound,
+                upper_bound,
+            } => {
+                28.hash(state);
+                density.hash(state);
+                cell_height.hash(state);
+                lower_bound.hash(state);
+                upper_bound.hash(state);
             }
         }
     }

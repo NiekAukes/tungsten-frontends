@@ -1,8 +1,5 @@
 use core::panic;
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-};
+use std::{collections::HashMap, fmt::Debug};
 
 use bumpalo::Bump;
 
@@ -11,8 +8,8 @@ use crate::{
     parse::{
         density::DensityParseFunctions,
         model::{
-            Density, DensitySource, NoiseGeneratorSettings, NoiseRouter, NoiseSettings,
-            NormalNoise, NormalNoiseType,
+            CoordinateType, Density, DensitySource, NoiseGeneratorSettings, NoiseRouter,
+            NoiseSettings, NormalNoise, NormalNoiseType,
         },
     },
 };
@@ -185,7 +182,11 @@ impl<'m> MinecraftData<'m> {
         }
     }
 
-    pub fn from_noise_router(arena: &'m Bump, raw_data: MinecraftDataRaw, router: NoiseRouter<'m>) -> MinecraftData<'m> {
+    pub fn from_noise_router(
+        arena: &'m Bump,
+        raw_data: MinecraftDataRaw,
+        router: NoiseRouter<'m>,
+    ) -> MinecraftData<'m> {
         let overworld_noise_generator_settings = NoiseGeneratorSettings {
             aquifers_enabled: true,
             default_block: "minecraft:stone".to_string(),
@@ -201,9 +202,12 @@ impl<'m> MinecraftData<'m> {
             noise_router: router,
         };
         MinecraftData {
-            arena, 
+            arena,
             raw_data,
-            noise_settings: HashMap::from([("minecraft:overworld".to_string(), overworld_noise_generator_settings)]),
+            noise_settings: HashMap::from([(
+                "minecraft:overworld".to_string(),
+                overworld_noise_generator_settings,
+            )]),
             density_functions: HashMap::new(),
             normal_noises: HashMap::new(),
             chunk_size: 16,
@@ -338,17 +342,27 @@ impl<'m> MinecraftData<'m> {
             } else {
                 panic!("Missing fluid_level_spread field in noise_router")
             };
-        let initial_density_without_jaggedness =
-            if let Some(initial_density_without_jaggedness_value) =
-                value.get("initial_density_without_jaggedness")
-            {
+        // let initial_density_without_jaggedness =
+        //     if let Some(initial_density_without_jaggedness_value) =
+        //         value.get("initial_density_without_jaggedness")
+        //     {
+        //         self.parse_density_function_from_value_and_name(
+        //             initial_density_without_jaggedness_value,
+        //             "initial_density_without_jaggedness",
+        //         )
+        //     } else {
+        //         panic!("Missing initial_density_without_jaggedness field in noise_router")
+        //     };
+        let preliminary_surface_level =
+            if let Some(preliminary_surface_level_value) = value.get("preliminary_surface_level") {
                 self.parse_density_function_from_value_and_name(
-                    initial_density_without_jaggedness_value,
-                    "initial_density_without_jaggedness",
+                    preliminary_surface_level_value,
+                    "preliminary_surface_level",
                 )
             } else {
-                panic!("Missing initial_density_without_jaggedness field in noise_router")
+                panic!("Missing preliminary_surface_level field in noise_router")
             };
+
         let lava = if let Some(lava_value) = value.get("lava") {
             self.parse_density_function_from_value_and_name(lava_value, "lava")
         } else {
@@ -396,7 +410,7 @@ impl<'m> MinecraftData<'m> {
                     settings.height >> 2,
                     self.chunk_size as i32 >> 2,
                 ),
-                is_biome_coordinate: true,
+                coordinate_type: CoordinateType::Biome,
             },
             depth: DensitySource::MultiSamplingDensity {
                 density: depth,
@@ -405,7 +419,7 @@ impl<'m> MinecraftData<'m> {
                     settings.height >> 2,
                     self.chunk_size as i32 >> 2,
                 ),
-                is_biome_coordinate: true,
+                coordinate_type: CoordinateType::Biome,
             },
             erosion: DensitySource::MultiSamplingDensity {
                 density: erosion,
@@ -414,7 +428,7 @@ impl<'m> MinecraftData<'m> {
                     settings.height >> 2,
                     self.chunk_size as i32 >> 2,
                 ),
-                is_biome_coordinate: true,
+                coordinate_type: CoordinateType::Biome,
             },
             final_density: DensitySource::MultiSamplingDensity {
                 density: final_density,
@@ -423,7 +437,7 @@ impl<'m> MinecraftData<'m> {
                     settings.height,
                     self.chunk_size as i32,
                 ),
-                is_biome_coordinate: false,
+                coordinate_type: CoordinateType::Terrain,
             },
             fluid_level_floodedness: DensitySource::SingleSamplingDensity {
                 density: fluid_level_floodedness,
@@ -431,26 +445,22 @@ impl<'m> MinecraftData<'m> {
             fluid_level_spread: DensitySource::SingleSamplingDensity {
                 density: fluid_level_spread,
             },
-            initial_density_without_jaggedness: DensitySource::MultiSamplingDensity {
-                density: initial_density_without_jaggedness,
-                dimensions: (
-                    4,
-                    settings.height / (settings.size_vertical * 4),
-                    4,
-                ),
-                is_biome_coordinate: true,
+            preliminary_surface_level: DensitySource::MultiSamplingDensity {
+                density: preliminary_surface_level,
+                dimensions: (4, 1, 4),
+                coordinate_type: CoordinateType::PreliminarySurface,
             },
             // initial_density_without_jaggedness: DensitySource::SingleSamplingDensity { density: initial_density_without_jaggedness },
             lava: DensitySource::SingleSamplingDensity { density: lava },
             // aka weirdness
-            ridges: DensitySource::MultiSamplingDensity { 
+            ridges: DensitySource::MultiSamplingDensity {
                 density: ridges,
                 dimensions: (
                     self.chunk_size as i32 >> 2,
                     settings.height >> 2,
                     self.chunk_size as i32 >> 2,
                 ),
-                is_biome_coordinate: true,
+                coordinate_type: CoordinateType::Biome,
             },
             temperature: DensitySource::MultiSamplingDensity {
                 density: temperature,
@@ -459,9 +469,9 @@ impl<'m> MinecraftData<'m> {
                     settings.height >> 2,
                     self.chunk_size as i32 >> 2,
                 ),
-                is_biome_coordinate: true,
+                coordinate_type: CoordinateType::Biome,
             },
-                
+
             vegetation: DensitySource::MultiSamplingDensity {
                 density: vegetation,
                 dimensions: (
@@ -469,17 +479,17 @@ impl<'m> MinecraftData<'m> {
                     settings.height >> 2,
                     self.chunk_size as i32 >> 2,
                 ),
-                is_biome_coordinate: true,
+                coordinate_type: CoordinateType::Biome,
             },
             vein_gap: DensitySource::SingleSamplingDensity { density: vein_gap },
-            vein_ridged: DensitySource::MultiSamplingDensity{
+            vein_ridged: DensitySource::MultiSamplingDensity {
                 density: vein_ridged,
                 dimensions: (
                     self.chunk_size as i32,
                     settings.height,
                     self.chunk_size as i32,
                 ),
-                is_biome_coordinate: false,
+                coordinate_type: CoordinateType::Terrain,
             },
             vein_toggle: DensitySource::MultiSamplingDensity {
                 density: vein_toggle,
@@ -488,7 +498,7 @@ impl<'m> MinecraftData<'m> {
                     settings.height,
                     self.chunk_size as i32,
                 ),
-                is_biome_coordinate: false,
+                coordinate_type: CoordinateType::Terrain,
             },
             // vein_ridged: DensitySource::SingleSamplingDensity { density: vein_ridged },
             // vein_toggle: DensitySource::SingleSamplingDensity { density: vein_toggle },
@@ -506,7 +516,7 @@ impl<'m> NoiseRouter<'m> {
             self.final_density,
             self.fluid_level_floodedness,
             self.fluid_level_spread,
-            self.initial_density_without_jaggedness,
+            self.preliminary_surface_level,
             self.lava,
             self.ridges,
             self.temperature,

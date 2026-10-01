@@ -3,8 +3,11 @@ use crate::{
     transform_spmt::{density::DensityBuilder, newvar},
 };
 
-use tungsten_wg::spmt::model::{
-    BinaryOperator, Expression, Function, Name::Named, Statement, Var, Variable, VariableType,
+use tungsten_wg::spmt::{
+    builder::SPMTBuilder,
+    model::{
+        BinaryOperator, Expression, Function, Name::Named, Statement, Var, Variable, VariableType,
+    },
 };
 
 /// The old spline implementation, which is the verified correct implementation. It does not work on the GPU however.
@@ -27,7 +30,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         };
         let pos3: Var<'m> = Var::new(self.arena.alloc(Variable {
             name: self.p.name.clone(),
-            t: VariableType::Extern("PositionIterator")
+            t: VariableType::Extern("PositionIterator"),
         }));
         function.parameters.push(pos3.clone());
 
@@ -227,6 +230,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 VariableType::F32,
                 VariableType::F32,
             ],
+            return_type: VariableType::F32,
         })
     }
 }

@@ -1,10 +1,12 @@
-use crate::orchestration::{PermutationTables, make_permutation_tables, orchestration};
+use crate::mathf64::index;
+use crate::orchestration::{make_permutation_tables, orchestration, PermutationTables};
 use crate::perlin::{create_perlin_noise_sampler, sample_perlin, sample_perlin_scaled};
 use crate::random::Random;
 use crate::xoroshiro::{self, create_xoroshiro_seed_str};
+use crate::Pos3;
 use crate::{
     mathf64::Vec3,
-    xoroshiro::{Xoroshiro128PlusPlusRandom, create_xoroshiro_seed},
+    xoroshiro::{create_xoroshiro_seed, Xoroshiro128PlusPlusRandom},
 };
 use std::cell::RefCell;
 

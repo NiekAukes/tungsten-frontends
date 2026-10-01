@@ -19,7 +19,12 @@ pub fn density_to_json(density: Density) -> Value {
     match &*density {
         DensityType::Const(c) => json!(c),
 
-        DensityType::Noise { name, xz_scale, y_scale, .. } => json!({
+        DensityType::Noise {
+            name,
+            xz_scale,
+            y_scale,
+            ..
+        } => json!({
             "type": "minecraft:noise",
             "noise": name,
             "xz_scale": xz_scale,
@@ -82,7 +87,12 @@ pub fn density_to_json(density: Density) -> Value {
 
         DensityType::EndIslands => json!({ "type": "minecraft:end_islands" }),
 
-        DensityType::YClampedGradient { from_y, to_y, from_value, to_value } => json!({
+        DensityType::YClampedGradient {
+            from_y,
+            to_y,
+            from_value,
+            to_value,
+        } => json!({
             "type": "minecraft:y_clamped_gradient",
             "from_y": from_y,
             "to_y": to_y,
@@ -90,7 +100,13 @@ pub fn density_to_json(density: Density) -> Value {
             "to_value": to_value,
         }),
 
-        DensityType::OldBlendedNoise { smear_scale_multiplier, xz_factor, xz_scale, y_factor, y_scale } => json!({
+        DensityType::OldBlendedNoise {
+            smear_scale_multiplier,
+            xz_factor,
+            xz_scale,
+            y_factor,
+            y_scale,
+        } => json!({
             "type": "minecraft:old_blended_noise",
             "smear_scale_multiplier": smear_scale_multiplier,
             "xz_factor": xz_factor,
@@ -99,7 +115,15 @@ pub fn density_to_json(density: Density) -> Value {
             "y_scale": y_scale,
         }),
 
-        DensityType::ShiftedNoise { name, shift_x, shift_y, shift_z, xz_scale, y_scale, .. } => json!({
+        DensityType::ShiftedNoise {
+            name,
+            shift_x,
+            shift_y,
+            shift_z,
+            xz_scale,
+            y_scale,
+            ..
+        } => json!({
             "type": "minecraft:shifted_noise",
             "noise": name,
             "shift_x": density_to_json(*shift_x),
@@ -122,7 +146,13 @@ pub fn density_to_json(density: Density) -> Value {
             "spline": spline_to_json(*spline),
         }),
 
-        DensityType::RangeChoice { input, min_inclusive, max_exclusive, when_in_range, when_out_of_range } => json!({
+        DensityType::RangeChoice {
+            input,
+            min_inclusive,
+            max_exclusive,
+            when_in_range,
+            when_out_of_range,
+        } => json!({
             "type": "minecraft:range_choice",
             "input": density_to_json(*input),
             "min_inclusive": min_inclusive,
@@ -133,7 +163,10 @@ pub fn density_to_json(density: Density) -> Value {
 
         // quarter_negative / half_negative both parse into XNegative; tell them
         // apart by the multiplier the parser assigns to each.
-        DensityType::XNegative { argument, neg_x_multiplier } => json!({
+        DensityType::XNegative {
+            argument,
+            neg_x_multiplier,
+        } => json!({
             "type": if *neg_x_multiplier == 0.25 { "minecraft:quarter_negative" } else { "minecraft:half_negative" },
             "argument": density_to_json(*argument),
         }),
@@ -145,7 +178,12 @@ pub fn density_to_json(density: Density) -> Value {
             "max": max,
         }),
 
-        DensityType::WeirdScaledSampler { input, noise_name, rarity_value_mapper, .. } => json!({
+        DensityType::WeirdScaledSampler {
+            input,
+            noise_name,
+            rarity_value_mapper,
+            ..
+        } => json!({
             "type": "minecraft:weird_scaled_sampler",
             "input": density_to_json(*input),
             "noise": noise_name,
@@ -154,6 +192,22 @@ pub fn density_to_json(density: Density) -> Value {
 
         // Exported as a plain name reference, matching the real format.
         DensityType::NamedDensityReference { name, .. } => json!(name),
+        DensityType::FindTopSurface {
+            density,
+            cell_height,
+            lower_bound,
+            upper_bound,
+        } => json!({
+            "type": "minecraft:find_top_surface",
+            "density": density_to_json(*density),
+            "cell_height": cell_height,
+            "lower_bound": lower_bound,
+            "upper_bound": density_to_json(*upper_bound),
+        }),
+        DensityType::Invert { argument } => json!({
+            "type": "minecraft:invert",
+            "argument": density_to_json(*argument),
+        }),
     }
 }
 

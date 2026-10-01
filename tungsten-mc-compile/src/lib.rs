@@ -25,19 +25,20 @@
 //! 2. **Parsing**: Parses JSON files into internal data structures
 //! 3. **Transformation**: Converts density function graph into SPMT representation
 //! 4. **Compilation**: Uses tungsten-wg backend to generate optimized code
+#![recursion_limit = "512"]
 
 use std::path::PathBuf;
 
 use bumpalo::Bump;
-pub use tungsten_wg::{CompiledOutput, CompilerConfig};
 use tungsten_wg::compile;
+pub use tungsten_wg::{CompiledOutput, CompilerConfig};
 
 use crate::parse::MinecraftData;
 
 pub mod config_load;
 pub mod parse;
-pub mod transform_spmt;
 pub mod shrink;
+pub mod transform_spmt;
 
 /// Configuration for the Minecraft worldgen compilation process.
 ///
@@ -249,6 +250,5 @@ pub fn run_generation_from_ast(config: &CompilerConfig, ast: &MinecraftData) -> 
     let program = transformer.transform(noise_generator);
 
     // 4. Delegate to the new compiler library
-    compile(&program, &config)
-        .expect("Failed to compile SPMT program into target backends")
+    compile(&program, &config).expect("Failed to compile SPMT program into target backends")
 }

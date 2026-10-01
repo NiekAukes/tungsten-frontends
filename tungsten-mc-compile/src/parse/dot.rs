@@ -142,6 +142,10 @@ impl DotPrinter {
             DensityType::NamedDensityReference { name, .. } => {
                 format!("NamedDensityRef\n{}", name)
             }
+            DensityType::FindTopSurface { cell_height, .. } => {
+                format!("FindTopSurface\ncell_height={}", cell_height)
+            }
+            DensityType::Invert { .. } => format!("Invert\n"),
         }
     }
 
@@ -259,6 +263,28 @@ impl DotPrinter {
             | DensityType::OldBlendedNoise { .. }
             | DensityType::ShiftA { .. }
             | DensityType::ShiftB { .. } => {}
+            DensityType::FindTopSurface {
+                density,
+                cell_height: _,
+                lower_bound,
+                upper_bound,
+            } => {
+                let density_id = self.visit_density(density);
+                let upper_bound_id = self.visit_density(upper_bound);
+                self.edges.push(format!(
+                    "    {} -> {} [label=\"density\"];",
+                    parent_id, density_id
+                ));
+                self.edges.push(format!(
+                    "    {} -> {} [label=\"upper_bound\"];",
+                    parent_id, upper_bound_id
+                ));
+            }
+            DensityType::Invert { argument } => {
+                let child_id = self.visit_density(argument);
+                self.edges
+                    .push(format!("    {} -> {};", parent_id, child_id));
+            }
         }
     }
 

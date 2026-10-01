@@ -15,10 +15,15 @@ impl<'m> DensityType<'m> {
             DensityType::Const(val) => {
                 writeln!(f, "{}Const({})", pad(indent), val)
             }
-            DensityType::Noise { name, noise, xz_scale, y_scale } => {
+            DensityType::Noise {
+                name,
+                noise,
+                xz_scale,
+                y_scale,
+            } => {
                 writeln!(f, "{}Noise(", pad(indent))?;
                 writeln!(f, "{}    name={},", pad(indent), name)?;
-                noise.fmt_with_indent(f, indent+4)?;
+                noise.fmt_with_indent(f, indent + 4)?;
                 writeln!(f, "{}    xz_scale={},", pad(indent), xz_scale)?;
                 writeln!(f, "{}    y_scale={}", pad(indent), y_scale)?;
                 writeln!(f, "{})", pad(indent))?; // Add the missing question mark for proper error handling
@@ -164,6 +169,28 @@ impl<'m> DensityType<'m> {
                 writeln!(f, "{}NamedDensityReference(name={}):", pad(indent), name)?;
                 argument.fmt_with_indent(f, indent + 2)
             }
+            DensityType::FindTopSurface {
+                density,
+                cell_height,
+                lower_bound,
+                upper_bound,
+            } => {
+                writeln!(
+                    f,
+                    "{}FindTopSurface(cell_height={}):",
+                    pad(indent),
+                    cell_height
+                )?;
+                writeln!(f, "{}Density:", pad(indent + 2))?;
+                density.fmt_with_indent(f, indent + 4)?;
+                writeln!(f, "{}LowerBound: {}", pad(indent + 2), lower_bound)?;
+                writeln!(f, "{}UpperBound:", pad(indent + 2))?;
+                upper_bound.fmt_with_indent(f, indent + 4)
+            }
+            DensityType::Invert { argument } => {
+                writeln!(f, "{}Invert:", pad(indent))?;
+                argument.fmt_with_indent(f, indent + 2)
+            }
         }
     }
 
@@ -232,7 +259,6 @@ impl<'m> SplineValue<'m> {
         }
     }
 }
-
 
 impl fmt::Display for NormalNoiseType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

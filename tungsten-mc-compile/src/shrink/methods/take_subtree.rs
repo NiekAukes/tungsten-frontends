@@ -27,29 +27,42 @@ impl TakeSubtree {
                 let (mut vitals, base) = Self::preserve_vital(*argument);
                 vitals.insert(0, VitalPreservation::Cache2d);
                 (vitals, base)
-            },
+            }
 
             DensityType::FlatCache { argument } => {
                 let (mut vitals, base) = Self::preserve_vital(*argument);
                 vitals.insert(0, VitalPreservation::FlatCache);
                 (vitals, base)
-            },
+            }
             DensityType::NamedDensityReference { name, argument } => {
                 let (mut vitals, base) = Self::preserve_vital(*argument);
                 vitals.insert(0, VitalPreservation::NamedDensityReference((*name).clone()));
                 (vitals, base)
-            },
+            }
             density => (vec![], density),
         }
     }
 
-    fn reconstruct_vital<'m>(arena: &'m Bump, vitals: Vec<VitalPreservation>, base: Density<'m>) -> Density<'m> {
+    fn reconstruct_vital<'m>(
+        arena: &'m Bump,
+        vitals: Vec<VitalPreservation>,
+        base: Density<'m>,
+    ) -> Density<'m> {
         let mut density = base;
         for vital in vitals.into_iter().rev() {
             density = match vital {
-                VitalPreservation::Cache2d => arena.alloc(DensityType::Cache2d { argument: density }),
-                VitalPreservation::FlatCache => arena.alloc(DensityType::FlatCache { argument: density }),
-                VitalPreservation::NamedDensityReference(name) => arena.alloc(DensityType::NamedDensityReference { name: arena.alloc(name), argument: density }),
+                VitalPreservation::Cache2d => {
+                    arena.alloc(DensityType::Cache2d { argument: density })
+                }
+                VitalPreservation::FlatCache => {
+                    arena.alloc(DensityType::FlatCache { argument: density })
+                }
+                VitalPreservation::NamedDensityReference(name) => {
+                    arena.alloc(DensityType::NamedDensityReference {
+                        name: arena.alloc(name),
+                        argument: density,
+                    })
+                }
             };
         }
         density
@@ -72,8 +85,12 @@ impl TakeSubtree {
             | DensityType::Square { argument }
             | DensityType::Cube { argument }
             | DensityType::XNegative { argument, .. }
-            | DensityType::Clamp { input: argument, .. }
-            | DensityType::WeirdScaledSampler { input: argument, .. } => vec![*argument],
+            | DensityType::Clamp {
+                input: argument, ..
+            }
+            | DensityType::WeirdScaledSampler {
+                input: argument, ..
+            } => vec![*argument],
 
             DensityType::RangeChoice {
                 input,
@@ -105,12 +122,11 @@ impl<'m> ShrinkMethod<'m> for TakeSubtree {
         if self.exhausted {
             return (false, 0);
         }
-        
+
         let root_density = match source {
             DensitySource::MultiSamplingDensity { density, .. } => density,
             DensitySource::SingleSamplingDensity { density } => density,
         };
-
 
         let density = Self::unwrap_vital(root_density);
 
@@ -131,24 +147,27 @@ impl<'m> ShrinkMethod<'m> for TakeSubtree {
         source: DensitySource<'m>,
     ) -> DensitySource<'m> {
         let (root_density, dimensions) = match source {
-            DensitySource::MultiSamplingDensity { density, dimensions, is_biome_coordinate } => (density, Some((dimensions, is_biome_coordinate))),
+            DensitySource::MultiSamplingDensity {
+                density,
+                dimensions,
+                coordinate_type,
+            } => (density, Some((dimensions, coordinate_type))),
             DensitySource::SingleSamplingDensity { density } => (density, None),
         };
 
-        let (vital,density) = Self::preserve_vital(root_density);
+        let (vital, density) = Self::preserve_vital(root_density);
 
         let mut children = Self::get_immediate_children(density);
-        
+
         // Extract the exact child mapped to the current strike index
         let selected_child = children.remove(remaining_strikes as usize);
         let selected_child = Self::reconstruct_vital(arena, vital, selected_child);
 
         match dimensions {
-            Some((dim, is_biome_coordinate)) => DensitySource::MultiSamplingDensity {
+            Some((dim, coordinate_type)) => DensitySource::MultiSamplingDensity {
                 density: selected_child,
                 dimensions: dim,
-                is_biome_coordinate,
-                
+                coordinate_type,
             },
             None => DensitySource::SingleSamplingDensity {
                 density: selected_child,

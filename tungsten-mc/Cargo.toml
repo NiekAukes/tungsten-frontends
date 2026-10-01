@@ -14,7 +14,7 @@ exclude = [
 ]
 
 [build-dependencies]
-tungsten-mc-compile = "0.211.0"
+tungsten-mc-compile = { path = "../tungsten-mc-compile" }
 
 [dependencies]
 md5 = "0.7.0"

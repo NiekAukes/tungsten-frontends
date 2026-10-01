@@ -203,6 +203,16 @@ pub fn pow(base: f64, exp: f64) -> f64 {
     base.powf(exp)
 }
 
+#[inline(always)]
+pub fn floor(value: f64) -> f64 {
+    value.floor()
+}
+
+#[inline(always)]
+pub fn ceil(value: f64) -> f64 {
+    value.ceil()
+}
+
 pub struct Iter3D {
     idx: usize,
     x: i32,
@@ -618,4 +628,20 @@ pub fn biome_column_index(pos3: Pos3) -> usize {
         z: pos3.z >> 2,
     };
     flat_y_zero_index(npos, 5, 5)
+}
+
+pub fn preliminary_surface_index(
+    pos: Pos3,
+    i: i32,
+    cell_height: i32,
+    sx: i32,
+    sy: i32,
+    sz: i32,
+) -> usize {
+    let new_pos = Pos3 {
+        x: pos.x,
+        y: i / cell_height,
+        z: pos.z,
+    };
+    as_index(new_pos, sx, sy, sz)
 }

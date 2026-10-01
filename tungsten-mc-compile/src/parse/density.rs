@@ -1,5 +1,5 @@
 use crate::parse::{
-    MinecraftData, model::Density, model::DensityType, spline::SplineParseFunctions,
+    model::Density, model::DensityType, spline::SplineParseFunctions, MinecraftData,
 };
 
 pub trait DensityParseFunctions<'m> {
@@ -447,6 +447,51 @@ impl<'m> DensityParseFunctions<'m> for MinecraftData<'m> {
                             let argument = self.parse_density_function_from_value(argument_value);
 
                             self.arena.alloc(DensityType::Cube { argument })
+                        }
+
+                        "minecraft:invert" => {
+                            let argument_value = obj
+                                .get("argument")
+                                .expect("Missing argument field in minecraft:invert");
+                            let argument = self.parse_density_function_from_value(argument_value);
+
+                            self.arena.alloc(DensityType::Invert { argument })
+                        }
+
+                        "minecraft:find_top_surface" => {
+                            let density_value = obj
+                                .get("density")
+                                .expect("Missing density field in minecraft:find_top_surface");
+                            let density = self.parse_density_function_from_value(density_value);
+
+                            let cell_height = obj
+                                .get("cell_height")
+                                .expect("Missing cell_height field in minecraft:find_top_surface")
+                                .as_i64()
+                                .expect("cell_height must be a number")
+                                as i32;
+
+                            // lower bound is a i32
+                            let lower_bound = obj
+                                .get("lower_bound")
+                                .expect("Missing lower_bound field in minecraft:find_top_surface")
+                                .as_i64()
+                                .expect("lower_bound must be a number")
+                                as i32;
+
+                            // upper bound is a density function
+                            let upper_bound_value = obj
+                                .get("upper_bound")
+                                .expect("Missing upper_bound field in minecraft:find_top_surface");
+                            let upper_bound =
+                                self.parse_density_function_from_value(upper_bound_value);
+
+                            self.arena.alloc(DensityType::FindTopSurface {
+                                density,
+                                cell_height,
+                                lower_bound,
+                                upper_bound,
+                            })
                         }
 
                         _ => panic!(

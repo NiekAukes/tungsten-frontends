@@ -1,3 +1,4 @@
+#![recursion_limit = "512"]
 use std::{path::PathBuf, thread::Builder};
 
 use clap::Parser;
@@ -5,7 +6,7 @@ use clap::Parser;
 use tungsten_wg::spmt::model::SPMT;
 use tungsten_wg::spmt::pretty::Printer;
 // Import the new library API
-use tungsten_wg::{CompilerConfig, compile};
+use tungsten_wg::{compile, CompilerConfig};
 
 use tungsten_wg::spmt::{dag::DensityDAG, model::Addr, pretty::PrettyPrint};
 
@@ -123,9 +124,14 @@ fn run_with_args(args: Args) {
     }
 
     if let Some(wave_graph) = compiled_output.wave_orchestration_graph {
-        let wave_graph_path = std::path::Path::new("wave_orchestration_graph").with_extension("dot");
-        std::fs::write(&wave_graph_path, wave_graph).expect("Unable to write wave orchestration graph");
-        println!("Generated wave orchestration graph at '{}'", wave_graph_path.display());
+        let wave_graph_path =
+            std::path::Path::new("wave_orchestration_graph").with_extension("dot");
+        std::fs::write(&wave_graph_path, wave_graph)
+            .expect("Unable to write wave orchestration graph");
+        println!(
+            "Generated wave orchestration graph at '{}'",
+            wave_graph_path.display()
+        );
     }
 
     if args.rust || (!args.cuda && !args.rust) {
@@ -137,9 +143,8 @@ fn run_with_args(args: Args) {
         // Safely write the newly combined RCL output block
         std::fs::write(&real_path, rcl_code).unwrap();
         println!("Generated inline RCL at '{}'", real_path.display());
-    } 
+    }
     if args.cuda {
-
         // --- Write CUDA ---
         let cuda_base = args.output;
         std::fs::create_dir_all(&cuda_base).expect("Unable to create CUDA output directory");
@@ -189,7 +194,7 @@ fn emit_intermediate_files(mcdata: &parse::MinecraftData, program: &SPMT) {
     std::fs::create_dir_all("density_dags").expect("Unable to create directory");
 
     let mut name_cache_bor = Some(name_cache);
-    for (i, mdf)in program.main_density_functions.iter().enumerate() {
+    for (i, mdf) in program.main_density_functions.iter().enumerate() {
         let density_function = mdf.density_function;
         let ddag_root = density_function;
         let ddag = DensityDAG { root: ddag_root };

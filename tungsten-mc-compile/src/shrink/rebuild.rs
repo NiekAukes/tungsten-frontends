@@ -1,5 +1,7 @@
+use crate::parse::model::{
+    Density, DensitySource, DensityType, SplinePoint, SplineType, SplineValue,
+};
 use bumpalo::Bump;
-use crate::parse::model::{Density, DensitySource, DensityType, SplineType, SplinePoint, SplineValue};
 
 /// Utility module for rebuilding and compacting ASTs.
 
@@ -27,27 +29,74 @@ pub fn replace_nth_node<'m>(
     // 2. Not the target, traverse children
     match &*density {
         DensityType::Add { left, right } => {
-            let new_left = replace_nth_node(arena, *left, target_strike, current_strike, modifier, intern);
-            let new_right = replace_nth_node(arena, *right, target_strike, current_strike, modifier, intern);
-            
+            let new_left = replace_nth_node(
+                arena,
+                *left,
+                target_strike,
+                current_strike,
+                modifier,
+                intern,
+            );
+            let new_right = replace_nth_node(
+                arena,
+                *right,
+                target_strike,
+                current_strike,
+                modifier,
+                intern,
+            );
+
             if std::ptr::eq(&*new_left, &**left) && std::ptr::eq(&*new_right, &**right) {
                 density
             } else {
-                intern(arena, DensityType::Add { left: new_left, right: new_right })
+                intern(
+                    arena,
+                    DensityType::Add {
+                        left: new_left,
+                        right: new_right,
+                    },
+                )
             }
         }
         DensityType::Multiply { left, right } => {
-            let new_left = replace_nth_node(arena, *left, target_strike, current_strike, modifier, intern);
-            let new_right = replace_nth_node(arena, *right, target_strike, current_strike, modifier, intern);
-            
+            let new_left = replace_nth_node(
+                arena,
+                *left,
+                target_strike,
+                current_strike,
+                modifier,
+                intern,
+            );
+            let new_right = replace_nth_node(
+                arena,
+                *right,
+                target_strike,
+                current_strike,
+                modifier,
+                intern,
+            );
+
             if std::ptr::eq(&*new_left, &**left) && std::ptr::eq(&*new_right, &**right) {
                 density
             } else {
-                intern(arena, DensityType::Multiply { left: new_left, right: new_right })
+                intern(
+                    arena,
+                    DensityType::Multiply {
+                        left: new_left,
+                        right: new_right,
+                    },
+                )
             }
         }
         DensityType::Cache2d { argument } => {
-            let new_arg = replace_nth_node(arena, *argument, target_strike, current_strike, modifier, intern);
+            let new_arg = replace_nth_node(
+                arena,
+                *argument,
+                target_strike,
+                current_strike,
+                modifier,
+                intern,
+            );
             if std::ptr::eq(&*new_arg, &**argument) {
                 density
             } else {
@@ -55,7 +104,6 @@ pub fn replace_nth_node<'m>(
             }
         }
         // TODO: Expand this pattern for all wrapper/binary nodes in DensityType...
-        
         _ => density, // Leaf nodes return themselves
     }
 }
@@ -75,25 +123,31 @@ pub fn compact_source_to_new_arena<'old, 'new>(
     fn intern<'new>(arena: &'new Bump, density_type: DensityType<'new>) -> Density<'new> {
         arena.alloc(density_type)
     }
-    fn intern_spline<'new>(arena: &'new Bump, spline_type: SplineType<'new>) -> crate::parse::model::Spline<'new> {
+    fn intern_spline<'new>(
+        arena: &'new Bump,
+        spline_type: SplineType<'new>,
+    ) -> crate::parse::model::Spline<'new> {
         arena.alloc(spline_type)
     }
-    fn intern_noise<'new>(arena: &'new Bump, noise_type: crate::parse::model::NormalNoiseType) -> crate::parse::model::NormalNoise<'new> {
+    fn intern_noise<'new>(
+        arena: &'new Bump,
+        noise_type: crate::parse::model::NormalNoiseType,
+    ) -> crate::parse::model::NormalNoise<'new> {
         arena.alloc(noise_type)
     }
     match source {
-        DensitySource::SingleSamplingDensity { density } => {
-            DensitySource::SingleSamplingDensity {
-                density: deep_clone_density(new_arena, density, &intern, &intern_spline, &intern_noise)
-            }
-        }
-        DensitySource::MultiSamplingDensity { density, dimensions , is_biome_coordinate } => {
-            DensitySource::MultiSamplingDensity {
-                density: deep_clone_density(new_arena, density, &intern, &intern_spline, &intern_noise),
-                dimensions,
-                is_biome_coordinate,
-            }
-        }
+        DensitySource::SingleSamplingDensity { density } => DensitySource::SingleSamplingDensity {
+            density: deep_clone_density(new_arena, density, &intern, &intern_spline, &intern_noise),
+        },
+        DensitySource::MultiSamplingDensity {
+            density,
+            dimensions,
+            coordinate_type,
+        } => DensitySource::MultiSamplingDensity {
+            density: deep_clone_density(new_arena, density, &intern, &intern_spline, &intern_noise),
+            dimensions,
+            coordinate_type,
+        },
     }
 }
 
@@ -103,33 +157,40 @@ fn deep_clone_density<'old, 'new>(
     density: Density<'old>,
     intern: &impl Fn(&'new Bump, DensityType<'new>) -> Density<'new>,
     intern_spline: &impl Fn(&'new Bump, SplineType<'new>) -> crate::parse::model::Spline<'new>,
-    intern_noise: &impl Fn(&'new Bump, crate::parse::model::NormalNoiseType) -> crate::parse::model::NormalNoise<'new>,
+    intern_noise: &impl Fn(
+        &'new Bump,
+        crate::parse::model::NormalNoiseType,
+    ) -> crate::parse::model::NormalNoise<'new>,
 ) -> Density<'new> {
     let new_type = match &*density {
         DensityType::Const(c) => DensityType::Const(*c),
-        
+
         DensityType::Add { left, right } => DensityType::Add {
             left: deep_clone_density(new_arena, *left, intern, intern_spline, intern_noise),
             right: deep_clone_density(new_arena, *right, intern, intern_spline, intern_noise),
         },
-        
-        DensityType::Noise { name, noise, xz_scale, y_scale } => DensityType::Noise {
+
+        DensityType::Noise {
+            name,
+            noise,
+            xz_scale,
+            y_scale,
+        } => DensityType::Noise {
             name: name.clone(),
             noise: intern_noise(new_arena, (**noise).clone()),
             xz_scale: *xz_scale,
             y_scale: *y_scale,
         },
-        
+
         DensityType::Cache2d { argument } => DensityType::Cache2d {
             argument: deep_clone_density(new_arena, *argument, intern, intern_spline, intern_noise),
         },
-        
+
         DensityType::Spline { spline } => DensityType::Spline {
-            spline: deep_clone_spline(new_arena, *spline, intern, intern_spline, intern_noise)
+            spline: deep_clone_spline(new_arena, *spline, intern, intern_spline, intern_noise),
         },
-        
+
         // TODO: Map the rest of your DensityType variants here...
-        
         _ => unimplemented!("Implement deep clone mapping for remaining variants"),
     };
 
@@ -141,22 +202,34 @@ fn deep_clone_spline<'old, 'new>(
     spline: crate::parse::model::Spline<'old>,
     intern: &impl Fn(&'new Bump, DensityType<'new>) -> Density<'new>,
     intern_spline: &impl Fn(&'new Bump, SplineType<'new>) -> crate::parse::model::Spline<'new>,
-    intern_noise: &impl Fn(&'new Bump, crate::parse::model::NormalNoiseType) -> crate::parse::model::NormalNoise<'new>,
+    intern_noise: &impl Fn(
+        &'new Bump,
+        crate::parse::model::NormalNoiseType,
+    ) -> crate::parse::model::NormalNoise<'new>,
 ) -> crate::parse::model::Spline<'new> {
-    
     // 1. Deep clone the inner coordinate density
-    let new_coord = deep_clone_density(new_arena, spline.coordinate, intern, intern_spline, intern_noise);
-    
+    let new_coord = deep_clone_density(
+        new_arena,
+        spline.coordinate,
+        intern,
+        intern_spline,
+        intern_noise,
+    );
+
     // 2. Deep clone all the points
     let mut new_points = Vec::with_capacity(spline.spline_points.len());
     for point in spline.spline_points {
         let new_val = match &point.value {
             SplineValue::Const(c) => SplineValue::Const(*c),
-            SplineValue::Spline(inner_s) => SplineValue::Spline(
-                deep_clone_spline(new_arena, *inner_s, intern, intern_spline, intern_noise)
-            ),
+            SplineValue::Spline(inner_s) => SplineValue::Spline(deep_clone_spline(
+                new_arena,
+                *inner_s,
+                intern,
+                intern_spline,
+                intern_noise,
+            )),
         };
-        
+
         new_points.push(SplinePoint {
             derivative: point.derivative,
             location: point.location,
@@ -167,8 +240,11 @@ fn deep_clone_spline<'old, 'new>(
     // 3. Allocate the slice into the new Bump arena
     let allocated_points = new_arena.alloc_slice_clone(&new_points);
 
-    intern_spline(new_arena, SplineType {
-        coordinate: new_coord,
-        spline_points: allocated_points,
-    })
+    intern_spline(
+        new_arena,
+        SplineType {
+            coordinate: new_coord,
+            spline_points: allocated_points,
+        },
+    )
 }
