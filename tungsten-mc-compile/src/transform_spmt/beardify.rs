@@ -100,9 +100,9 @@ impl<'m> Adjustment {
 extern_fns!(
     get_structure_weight(x: F64, y: F64, z: F64, yy: F64): F64,
     get_magnitude_weight(x: F64, y: F64, z: F64): F64,
-    ground_level_delta(b: "BlockBox"): F64,
+    // ground_level_delta(b: "BlockBox"): F64,
     do_beardify(b: "BlockBox", rpos: Vec3): Bool,
-    valid_beardify(b: "BlockBox"): Bool
+    valid_box(b: "BlockBox"): Bool
 );
 
 macro_rules! decl {
@@ -127,11 +127,12 @@ fn lower_beardify<'a, 'm>(
     let piece_array = newvar(
         builder.arena,
         "piece_array",
-        Array(Extern("Jigsaw").into(), 50),
+        Array(Extern("Piece").into(), 50),
     );
     let base_box = newvar(builder.arena, "base_box", Extern("BlockBox"));
 
     builder.density_function.host_inputs = vec![
+        HostInput::Static(base_box),
         HostInput::Static(jigsaw_array),
         HostInput::Static(piece_array),
     ];
@@ -145,6 +146,9 @@ fn lower_beardify<'a, 'm>(
     }
     fn get_box<'m>(piece: impl Into<Expression<'m>>) -> Expression<'m> {
         piece.into().field("block_box", Extern("BlockBox"))
+    };
+    fn ground_level_delta<'m>(piece: impl Into<Expression<'m>>) -> Expression<'m> {
+        piece.into().field("ground_level_delta", I32)
     };
     build!(builder, {
         d = 0.0;
@@ -181,26 +185,26 @@ fn lower_beardify<'a, 'm>(
                  */
                 current_piece = piece_array.index(i);
 
-                if (!valid_beardify(get_box(current_piece))) {
+                if (!valid_box(get_box(current_piece))) {
                     break;
                 }
 
                 m = max(
                     0.0f64,
                     max(
-                        base_box.field("min_x", Vec3) - x(),
-                        x() - base_box.field("max_x", Vec3),
+                        base_box.field("min_x", F64) - x(),
+                        x() - base_box.field("max_x", F64),
                     ),
                 );
                 n = max(
                     0.0f64,
                     max(
-                        base_box.field("min_z", Vec3) - z(),
-                        z() - base_box.field("max_z", Vec3),
+                        base_box.field("min_z", F64) - z(),
+                        z() - base_box.field("max_z", F64),
                     ),
                 );
-                o = base_box.field("min_y", Vec3) + ground_level_delta(base_box);
-                p = rpos.field("y", F64) - o.cast(F64);
+                o = base_box.field("min_y", F64) + ground_level_delta(current_piece).cast(F64);
+                p = y() - o.cast(F64);
 
                 /*
                 int q = switch (piece.terrainAdjustment()) {
@@ -211,6 +215,7 @@ fn lower_beardify<'a, 'm>(
                 };
                  */
                 s = terrain_adjustment(current_piece);
+                q = 0;
                 // not needed, is a no-op
                 // if (s.eq_expr(Adjustment::AdjNone.expr())) {
                 //     q = 0;
@@ -224,15 +229,15 @@ fn lower_beardify<'a, 'm>(
                 if (s.eq_expr(Adjustment::AdjBeardBox.expr())) {
                     q = max(
                         0.0f64,
-                        max(o.cast(F64) - y(), y() - base_box.field("max_y", Vec3)),
+                        max(o.cast(F64) - y(), y() - base_box.field("max_y", F64)),
                     );
                 }
                 if (s.eq_expr(Adjustment::AdjEncapsulate.expr())) {
                     q = max(
                         0.0f64,
                         max(
-                            base_box.field("min_y", Vec3) - y(),
-                            y() - base_box.field("max_y", Vec3),
+                            base_box.field("min_y", F64) - y(),
+                            y() - base_box.field("max_y", F64),
                         ),
                     );
                 }
@@ -250,7 +255,7 @@ fn lower_beardify<'a, 'm>(
                 //     d += 0.0;
                 // }
                 if (s.eq_expr(Adjustment::AdjBury.expr())) {
-                    d += get_magnitude_weight(m, q.cast(F64) / 2.0, n);
+                    d += get_magnitude_weight(m.cast(F64), q.cast(F64) / 2.0, n.cast(F64));
                 }
                 if (s
                     .eq_expr(Adjustment::AdjBeardThin.expr())
@@ -282,6 +287,7 @@ fn lower_beardify<'a, 'm>(
             let l = decl!(builder, l, I32);
             let m = decl!(builder, m, I32);
             while (i.lt(50i32)) {
+                current_jigsaw = jigsaw_array.index(i);
                 r = x().cast(I32) - current_jigsaw.field("source_x", I32);
                 l = y().cast(I32) - current_jigsaw.field("source_ground_y", I32);
                 m = z().cast(I32) - current_jigsaw.field("source_z", I32);

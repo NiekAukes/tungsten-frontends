@@ -15,6 +15,8 @@ pub mod xoroshiro;
 pub use mathf64::{Pos3, Vec3};
 pub use utils::set_perlin_seed;
 
+use crate::density_function::HostConsts;
+
 /// Compute a full 16x256x16 density chunk with the given seed and origin.
 /// Returns 13 output arrays (one for each density function output).
 // pub fn compute_density_chunk(
@@ -31,9 +33,20 @@ pub fn sample_density_at(seed: i64, origin: Vec3) -> f64 {
     let outputs = orchestration_seeded(seed, origin);
     outputs.final_density_with_beardify[0]
 }
+impl Default for HostConsts {
+    fn default() -> Self {
+        HostConsts {
+            base_box: BlockBox::default(),
+            jigsaw_array: [Jigsaw::default(); 50],
+            piece_array: [Piece::default(); 50],
+        }
+    }
+}
 
 /// Initialize the Perlin sampler with the given seed before computing density
 pub fn orchestration_seeded(seed: i64, origin: Vec3) -> orchestration::OrchestrationOutput {
     let permutation_tables = set_perlin_seed(seed);
-    orchestration::orchestration(origin, permutation_tables)
+    let host_consts = HostConsts::default();
+
+    orchestration::orchestration(origin, permutation_tables, &host_consts)
 }

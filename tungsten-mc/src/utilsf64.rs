@@ -959,3 +959,4 @@ pub fn binary_search<const N: usize>(arr: [f32; N], target: f32) -> i32 {
     }
     return N as i32;
 }
+

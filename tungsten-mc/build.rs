@@ -42,4 +42,39 @@ fn main() {
         let cu_path = out_dir.join("generated_worldgen.cu");
         fs::write(&cu_path, cuda_code).expect("Failed to write generated CUDA code");
     }
+
+    let structure_weight_table = compute_structure_weight_table();
+    // paste into a file for inclusion
+    let swt_path = out_dir.join("structure_weight_table.dat");
+    let out = format!("{:?}", structure_weight_table);
+    fs::write(&swt_path, out).expect("Failed to write structure weight table");
 }
+
+fn compute_structure_weight_table() -> [f64; 13824] {
+    let mut array = [0.0; 13824];
+    let mut i = 0;
+    let mut j = 0;
+    let mut k = 0;
+    while i < 24 {
+        while j < 24 {
+            while k < 24 {
+                array[i * 24 * 24 + j * 24 + k] = calculate_structure_weight(j as i32 - 12, k as i32 - 12, i as i32 - 12);
+                k += 1;
+            }
+            j += 1;
+            k = 0;
+        }
+        i += 1;
+        j = 0;
+    }
+    array
+}
+
+fn calculate_structure_weight(x: i32, y: i32, z: i32) -> f64 {
+    let y = y as f64 - 0.5;
+    let x = x as f64;
+    let z = z as f64;
+    let d = (x * x + y * y + z * z);
+    std::f64::consts::E.powf(-d / 16.0)
+}
+

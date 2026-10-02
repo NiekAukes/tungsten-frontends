@@ -11,6 +11,7 @@ use std::{
 
 use crate::{mathf64::Vec3, utilsf64::set_perlin_seed};
 use rayon::prelude::*;
+use crate::density_function::HostConsts;
 
 //mod density_function;
 //mod gpu_orchestrator;
@@ -19,10 +20,20 @@ pub mod mathf64;
 //mod orchestration;
 pub mod perlin;
 pub mod random;
-mod test_server;
+// mod test_server;
 pub mod utils;
 pub mod utilsf64;
 pub mod xoroshiro;
+
+impl Default for HostConsts {
+    fn default() -> Self {
+        HostConsts {
+            base_box: BlockBox::default(),
+            jigsaw_array: [Jigsaw::default(); 50],
+            piece_array: [Piece::default(); 50],
+        }
+    }
+}
 
 fn main() {
     let h = Builder::new()
@@ -41,7 +52,7 @@ fn run() {
             .get(pos + 1)
             .map(|s| s.as_str())
             .unwrap_or("127.0.0.1:9876");
-        test_server::run(addr);
+        // test_server::run(addr);
         return;
     }
 
@@ -101,7 +112,7 @@ fn run() {
                     z: rnd.next_int_bound(1000) as f64,
                 },
             );
-            let a = x.final_density;
+            let a = x.final_density_with_beardify;
 
             // print the mean, min and max of the density values for a sanity check
             let mean = a.iter().sum::<f64>() / a.len() as f64;
@@ -155,8 +166,10 @@ fn run_benchmark(output: &str) {
                 .unwrap()
                 .as_millis();
 
+            let host_consts = HostConsts::default();
+
             let t0 = Instant::now();
-            let _result = orchestration::orchestration(origin, perm_tables);
+            let _result = orchestration::orchestration(origin, perm_tables, &host_consts);
             let duration_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
             records.push(Record {
@@ -247,9 +260,11 @@ fn run_benchmark_mp(output: &str) {
                 .unwrap()
                 .as_millis();
 
+            let host_consts = HostConsts::default();
+
             let t0 = Instant::now();
 
-            let _result = orchestration::orchestration(origin, perm_tables);
+            let _result = orchestration::orchestration(origin, perm_tables, &host_consts);
 
             let duration_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
@@ -560,7 +575,8 @@ fn run_benchmark_mp(output: &str) {
 /// Initialize the Perlin sampler with the given seed before computing density
 pub fn orchestration_seeded(seed: i64, origin: Vec3) -> orchestration::OrchestrationOutput {
     let perm_tables = set_perlin_seed(seed);
-    orchestration::orchestration(origin, perm_tables)
+    let host_consts = HostConsts::default();
+    orchestration::orchestration(origin, perm_tables, &host_consts)
 }
 
 // fn run_gpu() {
