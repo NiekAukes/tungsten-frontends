@@ -90,6 +90,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 helper_functions: Vec::new(),
                 constants: Vec::new(),
                 source_hash: 0,
+                host_inputs: Vec::new(),
             },
 
             function: None,
@@ -280,6 +281,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             helper_functions: vec![],
             constants: vec![],
             source_hash: hash,
+            host_inputs: vec![],
         };
 
         if density_function.canonical_name.is_none() {
@@ -1673,6 +1675,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 let arg_expr = self.lower_density(argument);
                 Expression::Double(1.0) / arg_expr
             }
+            DensityType::Beardify => self.beardify(density),
         }
     }
 
@@ -1986,6 +1989,7 @@ impl NamedDensity for DensityType<'_> {
             DensityType::NamedDensityReference { .. } => "NamedDensityReference".into(),
             DensityType::FindTopSurface { .. } => "FindTopSurface".into(),
             DensityType::Invert { .. } => "Invert".into(),
+            DensityType::Beardify => "Beardify",
         }
     }
 }

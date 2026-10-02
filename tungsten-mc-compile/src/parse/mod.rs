@@ -8,8 +8,8 @@ use crate::{
     parse::{
         density::DensityParseFunctions,
         model::{
-            CoordinateType, Density, DensitySource, NoiseGeneratorSettings, NoiseRouter,
-            NoiseSettings, NormalNoise, NormalNoiseType,
+            CoordinateType, Density, DensitySource, DensityType::Beardify, NoiseGeneratorSettings,
+            NoiseRouter, NoiseSettings, NormalNoise, NormalNoiseType,
         },
     },
 };
@@ -320,7 +320,15 @@ impl<'m> MinecraftData<'m> {
             panic!("Missing erosion field in noise_router")
         };
         let final_density = if let Some(final_density_value) = value.get("final_density") {
-            self.parse_density_function_from_value_and_name(final_density_value, "final_density")
+            let parsed = self
+                .parse_density_function_from_value_and_name(final_density_value, "final_density");
+            self.arena.alloc(model::DensityType::NamedDensityReference {
+                name: self.arena.alloc("final_density_with_beardify".to_string()),
+                argument: self.arena.alloc(model::DensityType::Add {
+                    left: parsed,
+                    right: self.arena.alloc(model::DensityType::Beardify),
+                }),
+            })
         } else {
             panic!("Missing final_density field in noise_router")
         };

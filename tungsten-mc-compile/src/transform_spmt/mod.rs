@@ -14,6 +14,7 @@ use tungsten_wg::{
     },
 };
 
+pub mod beardify;
 pub mod density;
 pub mod find_top_surface;
 pub mod noise;

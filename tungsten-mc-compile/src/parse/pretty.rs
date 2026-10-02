@@ -191,6 +191,9 @@ impl<'m> DensityType<'m> {
                 writeln!(f, "{}Invert:", pad(indent))?;
                 argument.fmt_with_indent(f, indent + 2)
             }
+            DensityType::Beardify => {
+                writeln!(f, "{}Beardify", pad(indent))
+            }
         }
     }
 

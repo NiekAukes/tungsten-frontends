@@ -208,6 +208,9 @@ pub enum DensityType<'m> {
         name: Interned<'m, String>,
         argument: Density<'m>,
     },
+
+    // Custom Density types, not covered by JSON
+    Beardify,
 }
 
 impl Hash for DensityType<'_> {
@@ -412,6 +415,9 @@ impl Hash for DensityType<'_> {
                 cell_height.hash(state);
                 lower_bound.hash(state);
                 upper_bound.hash(state);
+            }
+            DensityType::Beardify => {
+                29.hash(state);
             }
         }
     }

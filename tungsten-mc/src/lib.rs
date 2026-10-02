@@ -29,7 +29,7 @@ pub use utils::set_perlin_seed;
 /// Returns the main final density value (the 12th output, index 11).
 pub fn sample_density_at(seed: i64, origin: Vec3) -> f64 {
     let outputs = orchestration_seeded(seed, origin);
-    outputs.final_density[0]
+    outputs.final_density_with_beardify[0]
 }
 
 /// Initialize the Perlin sampler with the given seed before computing density

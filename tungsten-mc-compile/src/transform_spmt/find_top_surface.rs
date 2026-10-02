@@ -67,12 +67,14 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         self.add_variable(j);
         self.add_variable(r);
         build!(self, {
+            // begin of SPMT
             i = floor(upper_bound / (cell_height as f64)) * (cell_height as f64);
             if (i.le(lower_bound)) {
                 i = lower_bound;
             } else {
                 j = i / cell_height;
                 while (j.ge(lower_bound / cell_height)) {
+                    // EMBED
                     let sample = Expression::DensityVariable(
                         density_di,
                         Some(
@@ -87,6 +89,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                             .into(),
                         ),
                     );
+                    //end of EMBED
 
                     if (sample.gt(0.0)) {
                         i = j * cell_height;
@@ -96,6 +99,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 }
             }
             r = i;
+            // end of SPMT
         });
         r.into()
     }

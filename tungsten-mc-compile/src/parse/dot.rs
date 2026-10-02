@@ -146,6 +146,7 @@ impl DotPrinter {
                 format!("FindTopSurface\ncell_height={}", cell_height)
             }
             DensityType::Invert { .. } => format!("Invert\n"),
+            DensityType::Beardify => format!("Beardify"),
         }
     }
 
@@ -284,6 +285,10 @@ impl DotPrinter {
                 let child_id = self.visit_density(argument);
                 self.edges
                     .push(format!("    {} -> {};", parent_id, child_id));
+            }
+            DensityType::Beardify => {
+                self.nodes
+                    .push(format!("    {} [label=\"Beardify\"];", parent_id));
             }
         }
     }
