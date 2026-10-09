@@ -39,8 +39,8 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         // first evaluate the density upper bound
         // dimensions = (x, total height / cell height, z)
         let workset = self.builder_state.as_ref().unwrap().working_set;
-        let y_dim = self.noise_settings.height / cell_height;
-        assert!(self.noise_settings.height % cell_height == 0);
+        let y_dim = self.noise_generator_settings.noise.height / cell_height;
+        assert!(self.noise_generator_settings.noise.height % cell_height == 0);
         let new_dimensions = (workset.dimensions.0, y_dim, workset.dimensions.2);
         let new_scaled_position = (
             workset.scaled_position.0,

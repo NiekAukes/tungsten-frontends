@@ -622,14 +622,14 @@ pub fn cornerx4y16z4_16(pos3: Pos3, sx: i32, sy: i32, sz: i32) -> usize {
     )
 }
 
-#[inline]
-pub fn biome_column_index(pos3: Pos3) -> usize {
+#[inline(never)]
+pub fn biome_column_index(pos3: Pos3, sx: i32, sz: i32) -> usize {
     let npos = Pos3 {
         x: pos3.x >> 2,
         y: 0,
         z: pos3.z >> 2,
     };
-    flat_y_zero_index(npos, 5, 5)
+    flat_y_zero_index(npos, sz, sx)
 }
 
 pub fn preliminary_surface_index(
@@ -650,31 +650,31 @@ pub fn preliminary_surface_index(
 
 /*
 
-	private static double getMagnitudeWeight(double x, double y, double z) {
-		double d = MathHelper.magnitude(x, y, z);
-		return MathHelper.clampedMap(d, 0.0, 6.0, 1.0, 0.0);
-	}
+    private static double getMagnitudeWeight(double x, double y, double z) {
+        double d = MathHelper.magnitude(x, y, z);
+        return MathHelper.clampedMap(d, 0.0, 6.0, 1.0, 0.0);
+    }
 
-	/**
-	 * Gets the structure weight from the array from the given position, or 0 if the position is out of bounds.
-	 */
-	private static double getStructureWeight(int x, int y, int z, int yy) {
-		int i = x + 12;
-		int j = y + 12;
-		int k = z + 12;
-		if (indexInBounds(i) && indexInBounds(j) && indexInBounds(k)) {
-			double d = yy + 0.5;
-			double e = MathHelper.squaredMagnitude(x, d, z);
-			double f = -d * MathHelper.fastInverseSqrt(e / 2.0) / 2.0;
-			return f * STRUCTURE_WEIGHT_TABLE[k * 24 * 24 + i * 24 + j];
-		} else {
-			return 0.0;
-		}
-	}
+    /**
+     * Gets the structure weight from the array from the given position, or 0 if the position is out of bounds.
+     */
+    private static double getStructureWeight(int x, int y, int z, int yy) {
+        int i = x + 12;
+        int j = y + 12;
+        int k = z + 12;
+        if (indexInBounds(i) && indexInBounds(j) && indexInBounds(k)) {
+            double d = yy + 0.5;
+            double e = MathHelper.squaredMagnitude(x, d, z);
+            double f = -d * MathHelper.fastInverseSqrt(e / 2.0) / 2.0;
+            return f * STRUCTURE_WEIGHT_TABLE[k * 24 * 24 + i * 24 + j];
+        } else {
+            return 0.0;
+        }
+    }
 
-    	public static double clampedMap(double value, double oldStart, double oldEnd, double newStart, double newEnd) {
-		return clampedLerp(getLerpProgress(value, oldStart, oldEnd), newStart, newEnd);
-	}
+        public static double clampedMap(double value, double oldStart, double oldEnd, double newStart, double newEnd) {
+        return clampedLerp(getLerpProgress(value, oldStart, oldEnd), newStart, newEnd);
+    }
 */
 
 // ===============================================
@@ -706,7 +706,6 @@ pub struct Jigsaw {
     pub delta_y: i32,
 }
 
-
 fn clamped_map(value: f64, old_start: f64, old_end: f64, new_start: f64, new_end: f64) -> f64 {
     let t = ((value - old_start) / (old_end - old_start)).clamp(0.0, 1.0);
     new_start + t * (new_end - new_start)
@@ -714,6 +713,9 @@ fn clamped_map(value: f64, old_start: f64, old_end: f64, new_start: f64, new_end
 
 pub fn get_magnitude_weight(x: f64, y: f64, z: f64) -> f64 {
     let d = (x * x + y * y + z * z).sqrt();
+    if d < 0.0 {
+        println!("Magnitude d is less than 10: {}", d);
+    }
     clamped_map(d, 0.0, 6.0, 1.0, 0.0)
 }
 
@@ -724,16 +726,15 @@ fn index_in_bounds(i: i32) -> bool {
 
 /*
 private static final float[] STRUCTURE_WEIGHT_TABLE = Util.make(new float[13824], array -> {
-		for (int i = 0; i < 24; i++) {
-			for (int j = 0; j < 24; j++) {
-				for (int k = 0; k < 24; k++) {
-					array[i * 24 * 24 + j * 24 + k] = (float)calculateStructureWeight(j - 12, k - 12, i - 12);
-				}
-			}
-		}
-	});
+        for (int i = 0; i < 24; i++) {
+            for (int j = 0; j < 24; j++) {
+                for (int k = 0; k < 24; k++) {
+                    array[i * 24 * 24 + j * 24 + k] = (float)calculateStructureWeight(j - 12, k - 12, i - 12);
+                }
+            }
+        }
+    });
 */
-
 
 // pub static STRUCTURE_WEIGHT_TABLE: [f64; 13824] = {
 //     let mut array = [0.0; 13824];
@@ -755,7 +756,14 @@ private static final float[] STRUCTURE_WEIGHT_TABLE = Util.make(new float[13824]
 //     array
 // };
 
-pub const STRUCTURE_WEIGHT_TABLE: [f64; 13824] = include!(concat!(env!("OUT_DIR"), "/structure_weight_table.dat"));
+pub const STRUCTURE_WEIGHT_TABLE: [f32; 13824] = include!("structure_weight_table.dat");
+
+fn fast_inverse_sqrt(x: f64) -> f64 {
+    let half = 0.5 * x;
+    let l = 6910469410427058090_i64 - ((x.to_bits() as i64) >> 1);
+    let y = f64::from_bits(l as u64);
+    y * (1.5 - half * y * y)
+}
 
 pub fn get_structure_weight(x: i32, y: i32, z: i32, yy: i32) -> f64 {
     let i = x + 12;
@@ -764,8 +772,8 @@ pub fn get_structure_weight(x: i32, y: i32, z: i32, yy: i32) -> f64 {
     if index_in_bounds(i) && index_in_bounds(j) && index_in_bounds(k) {
         let d = yy as f64 + 0.5;
         let e = (x as f64 * x as f64 + d * d + z as f64 * z as f64);
-        let f = -d * (2.0 / e).sqrt() / 2.0;
-        f * STRUCTURE_WEIGHT_TABLE[k as usize * 24 * 24 + i as usize * 24 + j as usize]
+        let f = -d * fast_inverse_sqrt(e / 2.0) / 2.0;
+        f * STRUCTURE_WEIGHT_TABLE[k as usize * 24 * 24 + i as usize * 24 + j as usize] as f64
     } else {
         0.0
     }
@@ -773,19 +781,28 @@ pub fn get_structure_weight(x: i32, y: i32, z: i32, yy: i32) -> f64 {
 
 /*
 public boolean contains(int x, int y, int z) {
-		return x >= this.minX && x <= this.maxX && z >= this.minZ && z <= this.maxZ && y >= this.minY && y <= this.maxY;
-	}
+        return x >= this.minX && x <= this.maxX && z >= this.minZ && z <= this.maxZ && y >= this.minY && y <= this.maxY;
+    }
 */
 pub fn do_beardify(block_box: BlockBox, rpos3: Vec3) -> bool {
-    rpos3.x >= block_box.min_x as f64 && rpos3.x <= block_box.max_x as f64 &&
-    rpos3.y >= block_box.min_y as f64 && rpos3.y <= block_box.max_y as f64 &&
-    rpos3.z >= block_box.min_z as f64 && rpos3.z <= block_box.max_z as f64
+    rpos3.x >= block_box.min_x as f64
+        && rpos3.x <= block_box.max_x as f64
+        && rpos3.y >= block_box.min_y as f64
+        && rpos3.y <= block_box.max_y as f64
+        && rpos3.z >= block_box.min_z as f64
+        && rpos3.z <= block_box.max_z as f64
 }
 
 pub fn valid_box(block_box: BlockBox) -> bool {
-    block_box.min_x <= block_box.max_x &&
-    block_box.min_y <= block_box.max_y &&
-    block_box.min_z <= block_box.max_z
+    block_box.min_x <= block_box.max_x
+        && block_box.min_y <= block_box.max_y
+        && block_box.min_z <= block_box.max_z
+        && block_box.min_x != 0.0
+        && block_box.min_y != 0.0
+        && block_box.min_z != 0.0
+        && block_box.max_x != 0.0
+        && block_box.max_y != 0.0
+        && block_box.max_z != 0.0
 }
 
 impl Default for BlockBox {
@@ -821,3 +838,214 @@ impl Default for Piece {
         }
     }
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use crate::orchestration::orchestrate_final_density_with_beardify;
+//     use crate::{density_function, orchestration};
+//     use std::fs;
+//     use std::path::Path;
+
+//     #[test]
+//     fn test_beardifier_with_binary_data() {
+//         // Test loading and running the beardifier with test data
+//         let test_file = "test_data/host_consts_chunk_-20_-17.bin";
+
+//         if !Path::new(test_file).exists() {
+//             eprintln!("Test file not found: {}", test_file);
+//             return;
+//         }
+
+//         let data = fs::read(test_file).expect("Failed to read test data file");
+
+//         let host_consts =
+//             crate::deserialize_host_consts(&data).expect("Failed to deserialize HostConsts");
+
+//         println!("Loaded HostConsts:");
+//         println!(
+//             "  Base Box: ({}, {}, {}) to ({}, {}, {})",
+//             host_consts.base_box.min_x,
+//             host_consts.base_box.min_y,
+//             host_consts.base_box.min_z,
+//             host_consts.base_box.max_x,
+//             host_consts.base_box.max_y,
+//             host_consts.base_box.max_z,
+//         );
+
+//         // Count valid pieces and jigsaws
+//         let valid_pieces = host_consts
+//             .piece_array
+//             .iter()
+//             .filter(|p| valid_box(p.block_box))
+//             .count();
+//         let valid_jigsaws = host_consts
+//             .jigsaw_array
+//             .iter()
+//             .filter(|j| {
+//                 j.source_x != -1073741824
+//                     || j.source_ground_y != -1073741824
+//                     || j.source_z != -1073741824
+//             })
+//             .count();
+
+//         println!("  Valid pieces: {}", valid_pieces);
+//         println!("  Valid jigsaws: {}", valid_jigsaws);
+
+//         // Test with various origins
+//         let test_cases = vec![(Vec3::new(-20.0 * 16.0, -64.0, -17.0 * 16.0))];
+
+//         let perm_tables = orchestration::make_permutation_tables(0);
+
+//         for origin in test_cases {
+//             // density_function::Beardifier_d16x384x16(
+//             //     &mut output,
+//             //     origin,
+//             //     scales,
+//             //     Vec3::new(1.0, 1.0, 1.0),
+//             //     &host_consts,
+//             // );
+//             let output =
+//                 orchestrate_final_density_with_beardify(origin, &perm_tables, &host_consts);
+
+//             // Compute statistics
+//             let min = output.iter().cloned().fold(f64::INFINITY, f64::min);
+//             let max = output.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+//             let sum: f64 = output.iter().sum();
+//             let mean = sum / output.len() as f64;
+//             let non_zero = output.iter().filter(|&&v| v != 0.0).count();
+
+//             println!("\nBeardifier output (origin: {:?}):", origin);
+//             println!("  Min: {:.6}", min);
+//             println!("  Max: {:.6}", max);
+//             println!("  Mean: {:.6}", mean);
+//             println!("  Non-zero values: {}", non_zero);
+//         }
+
+//         println!("\nBeardifier test completed successfully!");
+//     }
+
+//     #[test]
+//     fn test_beardifier_all_test_files() {
+//         // Test with all available test files
+//         let test_dir = "test_data";
+
+//         if !Path::new(test_dir).exists() {
+//             eprintln!("Test directory not found: {}", test_dir);
+//             return;
+//         }
+
+//         let perm_tables = orchestration::make_permutation_tables(0);
+
+//         let entries = fs::read_dir(test_dir).expect("Failed to read test directory");
+
+//         for entry in entries {
+//             let entry = entry.expect("Failed to read directory entry");
+//             let path = entry.path();
+
+//             if !path.extension().map_or(false, |ext| ext == "bin") {
+//                 continue;
+//             }
+
+//             let file_name = path
+//                 .file_name()
+//                 .and_then(|n| n.to_str())
+//                 .unwrap_or_default()
+//                 .to_string();
+//             println!("\nTesting: {}", file_name);
+
+//             let data = fs::read(&path).expect("Failed to read test data file");
+
+//             let host_consts = match crate::deserialize_host_consts(&data) {
+//                 Ok(hc) => hc,
+//                 Err(e) => {
+//                     eprintln!("  Failed to deserialize: {}", e);
+//                     continue;
+//                 }
+//             };
+
+//             println!(
+//                 "  Base Box: ({}, {}, {}) to ({}, {}, {})",
+//                 host_consts.base_box.min_x,
+//                 host_consts.base_box.min_y,
+//                 host_consts.base_box.min_z,
+//                 host_consts.base_box.max_x,
+//                 host_consts.base_box.max_y,
+//                 host_consts.base_box.max_z,
+//             );
+
+//             // Count valid pieces and jigsaws
+//             let valid_pieces = host_consts
+//                 .piece_array
+//                 .iter()
+//                 .filter(|p| valid_box(p.block_box))
+//                 .count();
+//             let valid_jigsaws = host_consts
+//                 .jigsaw_array
+//                 .iter()
+//                 .filter(|j| {
+//                     j.source_x != -1073741824
+//                         || j.source_ground_y != -1073741824
+//                         || j.source_z != -1073741824
+//                 })
+//                 .count();
+
+//             let block_box = host_consts.base_box;
+
+//             println!("  Valid pieces: {}", valid_pieces);
+//             println!("  Valid jigsaws: {}", valid_jigsaws);
+//             println!("  Block box: {:?}", block_box);
+
+//             // Derive origin from the chunk coords in the filename:
+//             // host_consts_chunk_<x>_<z>.bin
+//             let origin = file_name
+//                 .strip_prefix("host_consts_chunk_")
+//                 .and_then(|s| s.strip_suffix(".bin"))
+//                 .and_then(|s| s.split_once('_'))
+//                 .and_then(|(x, z)| Some((x.parse::<i32>().ok()?, z.parse::<i32>().ok()?)))
+//                 .map(|(cx, cz)| Vec3::new(cx as f64 * 16.0, -64.0, cz as f64 * 16.0))
+//                 .unwrap_or_else(|| {
+//                     eprintln!(
+//                         "  Could not parse chunk coords from filename, using origin (0, -64, 0)"
+//                     );
+//                     Vec3::new(0.0, -64.0, 0.0)
+//                 });
+
+//             let output =
+//                 orchestrate_final_density_with_beardify(origin, &perm_tables, &host_consts);
+
+//             // Compute statistics
+//             let min = output.iter().cloned().fold(f64::INFINITY, f64::min);
+//             let max = output.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+//             let sum: f64 = output.iter().sum();
+//             let mean = sum / output.len() as f64;
+//             let non_zero = output.iter().filter(|&&v| v != 0.0).count();
+
+//             println!("  Beardifier output (origin: {:?}):", origin);
+//             println!("    Min: {:.6}", min);
+//             println!("    Max: {:.6}", max);
+//             println!("    Mean: {:.6}", mean);
+//             println!("    Non-zero values: {}", non_zero);
+//         }
+
+//         let min = STRUCTURE_WEIGHT_TABLE
+//             .iter()
+//             .cloned()
+//             .fold(f32::INFINITY, f32::min);
+//         let max = STRUCTURE_WEIGHT_TABLE
+//             .iter()
+//             .cloned()
+//             .fold(f32::NEG_INFINITY, f32::max);
+//         let sum: f32 = STRUCTURE_WEIGHT_TABLE.iter().sum();
+//         let mean = sum / STRUCTURE_WEIGHT_TABLE.len() as f32;
+//         let non_zero = STRUCTURE_WEIGHT_TABLE.iter().filter(|&&v| v != 0.0).count();
+//         println!("structure weight table:");
+//         println!("    Min: {}", min);
+//         println!("    Max: {:.6}", max);
+//         println!("    Mean: {:.6}", mean);
+//         println!("    Sum: {}", sum);
+//         println!("    Non-zero values: {}", non_zero);
+
+//         println!("\nAll beardifier test files completed successfully!");
+//     }
+// }

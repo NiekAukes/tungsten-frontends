@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    parse::model::{Density, DensityType, NoiseSettings, NormalNoise},
+    parse::model::{Density, DensityType, NoiseGeneratorSettings, NoiseSettings, NormalNoise},
     transform_spmt::{
         anonvar, newvar,
         noise::{lower_normal_noise, lower_old_blended_noise},
@@ -71,14 +71,17 @@ pub struct DensityBuilder<'a, 'm> {
     pub(crate) origin_scale: Var<'m>,
     pub(crate) position_scale: Var<'m>,
 
-    pub(crate) noise_settings: &'a NoiseSettings,
+    /// A toggle indicating whether to always inline non-2d functions
+    pub(crate) always_inline_non_2d: bool,
+
+    pub(crate) noise_generator_settings: &'a NoiseGeneratorSettings<'a>,
 }
 
 impl<'a, 'm> DensityBuilder<'a, 'm> {
     pub fn new(
         arena: &'m bumpalo::Bump,
         state: BuilderState<'a, 'm>,
-        noise_settings: &'a NoiseSettings,
+        noise_generator_settings: &'a NoiseGeneratorSettings<'a>,
     ) -> Self {
         let mut s = Self {
             density_function: DensityFunction {
@@ -91,6 +94,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 constants: Vec::new(),
                 source_hash: 0,
                 host_inputs: Vec::new(),
+                return_type: VariableType::F64,
             },
 
             function: None,
@@ -106,7 +110,8 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             origin: newvar(arena, "origin", VariableType::Vec3),
             origin_scale: newvar(arena, "origin_scale", VariableType::Vec3),
             position_scale: newvar(arena, "position_scale", VariableType::Vec3),
-            noise_settings,
+            noise_generator_settings,
+            always_inline_non_2d: false,
         };
 
         s.add_variable(s.rpos3.clone());
@@ -126,10 +131,10 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
     pub fn new_named(
         arena: &'m bumpalo::Bump,
         state: BuilderState<'a, 'm>,
-        noise_settings: &'a NoiseSettings,
+        noise_generator_settings: &'a NoiseGeneratorSettings<'a>,
         canonical_name: Option<String>,
     ) -> Self {
-        let mut s = Self::new(arena, state, noise_settings);
+        let mut s = Self::new(arena, state, noise_generator_settings);
         s.density_function.canonical_name = canonical_name;
         s
     }
@@ -282,6 +287,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             constants: vec![],
             source_hash: hash,
             host_inputs: vec![],
+            return_type: VariableType::F64,
         };
 
         if density_function.canonical_name.is_none() {
@@ -351,10 +357,10 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         y_scale: f64,
         z_scale: f64,
         name: String,
-    ) -> DensityInput<'m> {
+    ) -> (DensityInput<'m>, Option<Box<Expression<'m>>>) {
         // check if we already have a density function for this noise
         // create a scaled noise struct to use as a key for the cache
-
+        let dimensions = self.builder_state.as_ref().unwrap().working_set.dimensions;
         let mut scaled_origin = self
             .builder_state
             .as_ref()
@@ -371,7 +377,21 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             scale: Scale::new(scaled_origin.0, scaled_origin.1, scaled_origin.2),
         };
         if let Some(cached) = self.noise_inputs.get(&noise_scaled) {
-            return cached.clone();
+            let indexing = if scaled_origin.1 == 0.0 {
+                Some(Box::new(Expression::ExternCall {
+                    function_name: "flat_y_zero_index".to_string(),
+                    parameters: vec![
+                        Expression::Variable(self.p.clone()),
+                        Expression::Int(dimensions.0 as i32),
+                        Expression::Int(dimensions.2 as i32),
+                    ],
+                    parameter_types: vec![VariableType::Pos3, VariableType::I32, VariableType::I32],
+                    return_type: VariableType::I32,
+                }))
+            } else {
+                None
+            };
+            return (cached.clone(), indexing);
         }
 
         // borrow the caches from the builder state
@@ -393,15 +413,30 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             density_function_ref
         };
         let v = anonvar(self.arena, VariableType::DensityInput);
-        let dimensions = bs.working_set.dimensions;
+        let mut dimensions = bs.working_set.dimensions;
         let mut scaled_origin = bs.working_set.scaled_origin;
         let mut scaled_position = bs.working_set.scaled_position;
+        let mut indexing: Option<Box<Expression<'m>>> = None;
         scaled_origin.0 *= x_scale;
         scaled_origin.1 *= y_scale;
         scaled_origin.2 *= z_scale;
         scaled_position.0 *= x_scale;
         scaled_position.1 *= y_scale;
         scaled_position.2 *= z_scale;
+        if y_scale == 0.0 {
+            dimensions.1 = 1;
+            indexing = Some(Box::new(Expression::ExternCall {
+                function_name: "flat_y_zero_index".to_string(),
+                parameters: vec![
+                    Expression::Variable(self.p.clone()),
+                    Expression::Int(dimensions.0 as i32),
+                    Expression::Int(dimensions.2 as i32),
+                ],
+                parameter_types: vec![VariableType::Pos3, VariableType::I32, VariableType::I32],
+                return_type: VariableType::I32,
+            }));
+        }
+
         let input = DensityInput {
             var: v.clone(),
             density_function: density_function_ref.clone(),
@@ -418,7 +453,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
 
         // return the density input, and put back the caches into the builder state
         self.builder_state = Some(bs);
-        input
+        (input, indexing)
     }
 
     pub fn _lower_density_shader_inner(
@@ -438,7 +473,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             let mut builder = DensityBuilder::new_named(
                 self.arena,
                 bs,
-                self.noise_settings,
+                self.noise_generator_settings,
                 canonical_name.clone(),
             );
             //let r = builder.lower_density(density);
@@ -507,7 +542,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             lower_function,
         );
 
-        let dimensions = self.builder_state.as_ref().unwrap().working_set.dimensions;
+        let mut dimensions = self.builder_state.as_ref().unwrap().working_set.dimensions;
         let scaled_origin = self
             .builder_state
             .as_ref()
@@ -520,6 +555,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             .unwrap()
             .working_set
             .scaled_position;
+
         let input = DensityInput {
             var: v.clone(),
             density_function: density_function_ref.clone(),
@@ -658,11 +694,30 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 xz_scale,
                 y_scale,
             } => {
-                // A noise call specifically
-                let fref =
-                    self.lower_noise_and_mark(noise, xz_scale, y_scale, xz_scale, name.clone());
-                // use the density input as the expression
-                Expression::DensityVariable(fref, None)
+                if self.always_inline_non_2d && y_scale != 0.0 {
+                    // make it a normal function call
+                    let working_set = &self.builder_state.as_ref().unwrap().working_set;
+                    let (fref, perm_tables) = self.lower_noise(
+                        noise,
+                        working_set.scaled_origin,
+                        working_set.scaled_position,
+                        name.as_str(),
+                        name.clone(),
+                    );
+                    self.density_function
+                        .permutation_table_inputs
+                        .extend(perm_tables);
+                    Expression::FunctionCall {
+                        function: fref,
+                        parameters: vec![self.rpos3.into()],
+                    }
+                } else {
+                    // A noise call specifically
+                    let (fref, indexing) =
+                        self.lower_noise_and_mark(noise, xz_scale, y_scale, xz_scale, name.clone());
+                    // use the density input as the expression
+                    Expression::DensityVariable(fref, indexing)
+                }
             }
             DensityType::Const(v) => Expression::Double(v),
             DensityType::Add { left, right } => {
@@ -697,6 +752,14 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     .is_none()
                 {
                     panic!("Cache2d is not supported in this context");
+                }
+
+                // Check if the current context is already 2d, if so, just use the existing 2d coordinates
+                let current_dimensions =
+                    &self.builder_state.as_ref().unwrap().working_set.dimensions;
+                if current_dimensions.1 == 1 {
+                    // Already 2D, no need to do anything special
+                    return self.lower_density(argument);
                 }
 
                 // Check if we've already cached this specific 2D evaluation
@@ -1003,8 +1066,16 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                             cached.clone(),
                             Some(Box::new(Expression::ExternCall {
                                 function_name: "biome_column_index".into(),
-                                parameters: vec![Expression::Variable(self.p.clone())],
-                                parameter_types: vec![VariableType::Pos3],
+                                parameters: vec![
+                                    Expression::Variable(self.p.clone()),
+                                    Expression::Int(flat_dims.0),
+                                    Expression::Int(flat_dims.2),
+                                ],
+                                parameter_types: vec![
+                                    VariableType::Pos3,
+                                    VariableType::I32,
+                                    VariableType::I32,
+                                ],
                                 return_type: VariableType::I32,
                             })),
                         );
@@ -1064,8 +1135,16 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                         input,
                         Some(Box::new(Expression::ExternCall {
                             function_name: "biome_column_index".into(),
-                            parameters: vec![Expression::Variable(self.p.clone())],
-                            parameter_types: vec![VariableType::Pos3],
+                            parameters: vec![
+                                Expression::Variable(self.p.clone()),
+                                flat_set.dimensions.0.into(),
+                                flat_set.dimensions.2.into(),
+                            ],
+                            parameter_types: vec![
+                                VariableType::Pos3,
+                                VariableType::I32,
+                                VariableType::I32,
+                            ],
                             return_type: VariableType::I32,
                         })),
                     );
@@ -1253,7 +1332,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
 
                 //let density_input =
                 //self.lower_noise(argument, None, dimensions, scaled_origin);
-                let density_input =
+                let (density_input, _) =
                     self.lower_noise_and_mark(argument, 1.0, 1.0, 1.0, name.clone());
                 let index = Box::new(Expression::ExternCall {
                     function_name: "flat_y_zero_index".into(),
@@ -1676,6 +1755,12 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 Expression::Double(1.0) / arg_expr
             }
             DensityType::Beardify => self.beardify(density),
+
+            DensityType::Aquifer { .. } => self.aquifer(density),
+
+            DensityType::Custom(name) => {
+                panic!("Custom density '{}' is not supported", name);
+            }
         }
     }
 
@@ -1990,6 +2075,8 @@ impl NamedDensity for DensityType<'_> {
             DensityType::FindTopSurface { .. } => "FindTopSurface".into(),
             DensityType::Invert { .. } => "Invert".into(),
             DensityType::Beardify => "Beardify",
+            DensityType::Aquifer { .. } => "Aquifer".into(),
+            DensityType::Custom(name) => *name,
         }
     }
 }

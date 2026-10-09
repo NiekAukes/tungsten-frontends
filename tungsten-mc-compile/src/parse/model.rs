@@ -10,6 +10,8 @@ pub struct NoiseRouter<'m> {
     pub depth: DensitySource<'m>,
     pub erosion: DensitySource<'m>,
     pub final_density: DensitySource<'m>,
+    // The final density after applying the beardifier.
+    pub final_density_with_beard: DensitySource<'m>,
     pub fluid_level_floodedness: DensitySource<'m>,
     pub fluid_level_spread: DensitySource<'m>,
     pub preliminary_surface_level: DensitySource<'m>,
@@ -20,6 +22,8 @@ pub struct NoiseRouter<'m> {
     pub vein_gap: DensitySource<'m>,
     pub vein_ridged: DensitySource<'m>,
     pub vein_toggle: DensitySource<'m>,
+
+    pub aquifer_sampler: DensitySource<'m>,
 }
 
 #[derive(Debug, Clone)]
@@ -211,6 +215,22 @@ pub enum DensityType<'m> {
 
     // Custom Density types, not covered by JSON
     Beardify,
+
+    // Aquifer sampling
+    Aquifer {
+        final_density: Density<'m>,
+        depth: Density<'m>,
+        erosion: Density<'m>,
+        floodedness: Density<'m>,
+        spread: Density<'m>,
+    },
+
+    // WaterTable {
+    //     depth: Density<'m>,
+    //     erosion: Density<'m>,
+    //     floodedness: Density<'m>,
+    // },
+    Custom(&'static str),
 }
 
 impl Hash for DensityType<'_> {
@@ -418,6 +438,25 @@ impl Hash for DensityType<'_> {
             }
             DensityType::Beardify => {
                 29.hash(state);
+            }
+            DensityType::Aquifer {
+                final_density,
+                depth,
+                erosion,
+                floodedness,
+                spread,
+            } => {
+                30.hash(state);
+                final_density.hash(state);
+                depth.hash(state);
+                erosion.hash(state);
+                floodedness.hash(state);
+                spread.hash(state);
+            }
+
+            DensityType::Custom(name) => {
+                100.hash(state);
+                name.hash(state);
             }
         }
     }

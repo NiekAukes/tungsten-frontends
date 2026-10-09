@@ -122,12 +122,12 @@ fn lower_beardify<'a, 'm>(
     let jigsaw_array = newvar(
         builder.arena,
         "jigsaw_array",
-        Array(Extern("Jigsaw").into(), 50),
+        Array(Extern("Jigsaw").into(), 500),
     );
     let piece_array = newvar(
         builder.arena,
         "piece_array",
-        Array(Extern("Piece").into(), 50),
+        Array(Extern("Piece").into(), 500),
     );
     let base_box = newvar(builder.arena, "base_box", Extern("BlockBox"));
 
@@ -160,10 +160,11 @@ fn lower_beardify<'a, 'm>(
             //     _t
             // };
             let current_piece = decl!(builder, current_piece, Extern("Piece"));
+            let current_box = decl!(builder, current_box, Extern("BlockBox"));
             let current_jigsaw = decl!(builder, current_jigsaw, Extern("Jigsaw"));
             let i = decl!(builder, i, VariableType::I32);
-            let m = decl!(builder, m, VariableType::I32);
-            let n = decl!(builder, n, VariableType::I32);
+            let distance_x = decl!(builder, m, VariableType::I32);
+            let distance_z = decl!(builder, n, VariableType::I32);
             let o = decl!(builder, o, VariableType::I32);
             let p = decl!(builder, p, VariableType::I32);
             let q = decl!(builder, q, VariableType::I32);
@@ -174,7 +175,7 @@ fn lower_beardify<'a, 'm>(
             let z = rpos.field("z", F64).reusable();
 
             i = 0;
-            while (i.lt(50)) {
+            while (i.lt(500)) {
                 /*
                 BlockBox blockBox = piece.box();
                 int l = piece.groundLevelDelta();
@@ -184,26 +185,27 @@ fn lower_beardify<'a, 'm>(
                 int p = j - o;
                  */
                 current_piece = piece_array.index(i);
+                current_box = get_box(current_piece);
 
-                if (!valid_box(get_box(current_piece))) {
+                if (!valid_box(current_box)) {
                     break;
                 }
 
-                m = max(
+                distance_x = max(
                     0.0f64,
                     max(
-                        base_box.field("min_x", F64) - x(),
-                        x() - base_box.field("max_x", F64),
+                        current_box.field("min_x", F64) - x(),
+                        x() - current_box.field("max_x", F64),
                     ),
                 );
-                n = max(
+                distance_z = max(
                     0.0f64,
                     max(
-                        base_box.field("min_z", F64) - z(),
-                        z() - base_box.field("max_z", F64),
+                        current_box.field("min_z", F64) - z(),
+                        z() - current_box.field("max_z", F64),
                     ),
                 );
-                o = base_box.field("min_y", F64) + ground_level_delta(current_piece).cast(F64);
+                o = current_box.field("min_y", F64) + ground_level_delta(current_piece).cast(F64);
                 p = y() - o.cast(F64);
 
                 /*
@@ -222,22 +224,22 @@ fn lower_beardify<'a, 'm>(
                 // }
                 if (s
                     .eq_expr(Adjustment::AdjBury.expr())
-                    .or(p.eq_expr(Adjustment::AdjBeardThin.expr())))
+                    .or(s.eq_expr(Adjustment::AdjBeardThin.expr())))
                 {
                     q = p;
                 }
                 if (s.eq_expr(Adjustment::AdjBeardBox.expr())) {
                     q = max(
                         0.0f64,
-                        max(o.cast(F64) - y(), y() - base_box.field("max_y", F64)),
+                        max(o.cast(F64) - y(), y() - current_box.field("max_y", F64)),
                     );
                 }
                 if (s.eq_expr(Adjustment::AdjEncapsulate.expr())) {
                     q = max(
                         0.0f64,
                         max(
-                            base_box.field("min_y", F64) - y(),
-                            y() - base_box.field("max_y", F64),
+                            current_box.field("min_y", F64) - y(),
+                            y() - current_box.field("max_y", F64),
                         ),
                     );
                 }
@@ -255,19 +257,23 @@ fn lower_beardify<'a, 'm>(
                 //     d += 0.0;
                 // }
                 if (s.eq_expr(Adjustment::AdjBury.expr())) {
-                    d += get_magnitude_weight(m.cast(F64), q.cast(F64) / 2.0, n.cast(F64));
+                    d += get_magnitude_weight(
+                        distance_x.cast(F64),
+                        q.cast(F64) / 2.0,
+                        distance_z.cast(F64),
+                    );
                 }
                 if (s
                     .eq_expr(Adjustment::AdjBeardThin.expr())
                     .or(s.eq_expr(Adjustment::AdjBeardBox.expr())))
                 {
-                    d += get_structure_weight(m, q, n, p) * 0.8;
+                    d += get_structure_weight(distance_x, q, distance_z, p) * 0.8;
                 }
                 if (s.eq_expr(Adjustment::AdjEncapsulate.expr())) {
                     d += get_magnitude_weight(
-                        m.cast(F64) / 2.0,
+                        distance_x.cast(F64) / 2.0,
                         q.cast(F64) / 2.0,
-                        n.cast(F64) / 2.0,
+                        distance_z.cast(F64) / 2.0,
                     ) * 0.8;
                 }
 
@@ -286,8 +292,24 @@ fn lower_beardify<'a, 'm>(
             let r = decl!(builder, r, I32);
             let l = decl!(builder, l, I32);
             let m = decl!(builder, m, I32);
-            while (i.lt(50i32)) {
+            while (i.lt(500i32)) {
                 current_jigsaw = jigsaw_array.index(i);
+                if (current_jigsaw
+                    .field("source_x", I32)
+                    .eq_expr(-1073741824i32)
+                    .and(
+                        current_jigsaw
+                            .field("source_ground_y", I32)
+                            .eq_expr(-1073741824i32),
+                    )
+                    .and(
+                        current_jigsaw
+                            .field("source_z", I32)
+                            .eq_expr(-1073741824i32),
+                    ))
+                {
+                    break;
+                }
                 r = x().cast(I32) - current_jigsaw.field("source_x", I32);
                 l = y().cast(I32) - current_jigsaw.field("source_ground_y", I32);
                 m = z().cast(I32) - current_jigsaw.field("source_z", I32);

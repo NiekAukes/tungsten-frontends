@@ -509,16 +509,22 @@ impl<'m> DensityParseFunctions<'m> for MinecraftData<'m> {
             //density_arena.intern(DensityFunctionType::Const(num))
             self.arena.alloc(DensityType::Const(num))
         } else {
-            let s = value
+            let mut s = value
                 .as_str()
-                .expect("DensityFunction must be an object, number, or string");
+                .expect("DensityFunction must be an object, number, or string")
+                .to_string();
+            if !s.starts_with("minecraft:") {
+                // add the "minecraft:" prefix if it's missing
+                s = format!("minecraft:{}", s);
+            }
+
             // may be a reference to another density function
-            if let Some(referenced) = self.density_functions.get(s) {
+            if let Some(referenced) = self.density_functions.get(&s) {
                 *referenced
             //} else if let Some(referenced) = self.normal_noises.get(s) {
             // also allow referencing normal noises directly
             //self.arena.alloc(DensityType::Noise(*referenced))
-            } else if let Some(referenced) = self.raw_data.density_functions.get(s) {
+            } else if let Some(referenced) = self.raw_data.density_functions.get(&s) {
                 // also allow referencing density functions directly
                 let parsed = self.parse_density_function(referenced);
                 let name = s.to_string();

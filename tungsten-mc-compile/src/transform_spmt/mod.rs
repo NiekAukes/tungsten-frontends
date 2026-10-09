@@ -14,6 +14,7 @@ use tungsten_wg::{
     },
 };
 
+pub mod aquifer;
 pub mod beardify;
 pub mod density;
 pub mod find_top_surface;
@@ -269,8 +270,7 @@ impl<'a, 'm> Transformer<'a, 'm> {
                         sampling_set
                     };
 
-                    let density_function =
-                        self.lower_density_function(density, &noise_generator.noise);
+                    let density_function = self.lower_density_function(density, &noise_generator);
 
                     //self.final_model.density_functions.push(density_function);
                     self.final_model
@@ -313,7 +313,7 @@ impl<'a, 'm> Transformer<'a, 'm> {
     pub fn lower_density_function(
         &mut self,
         density: Density<'a>,
-        noise_settings: &'a NoiseSettings,
+        noise_generator_settings: &'a NoiseGeneratorSettings<'a>,
     ) -> DensityFunctionRef<'m> {
         let bs = self.builder_state.take().unwrap();
         if let Some(cached) = bs.get_cached_density(&density) {
@@ -334,7 +334,7 @@ impl<'a, 'm> Transformer<'a, 'm> {
         }
 
         // create a density function builder
-        let mut builder = DensityBuilder::new_named(self.arena, bs, noise_settings, name);
+        let mut builder = DensityBuilder::new_named(self.arena, bs, noise_generator_settings, name);
         // lower the density into the builder
         let r = builder.lower_density(inner_density);
         // build the density function

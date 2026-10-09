@@ -322,6 +322,21 @@ impl<'m> MinecraftData<'m> {
         let final_density = if let Some(final_density_value) = value.get("final_density") {
             let parsed = self
                 .parse_density_function_from_value_and_name(final_density_value, "final_density");
+            // self.arena.alloc(model::DensityType::NamedDensityReference {
+            //     name: self.arena.alloc("final_density_with_beardify".to_string()),
+            //     argument: self.arena.alloc(model::DensityType::Add {
+            //         left: parsed,
+            //         right: self.arena.alloc(model::DensityType::Beardify),
+            //     }),
+            // })
+            parsed
+        } else {
+            panic!("Missing final_density field in noise_router")
+        };
+        let final_density_with_beard = if let Some(final_density_value) = value.get("final_density")
+        {
+            let parsed = self
+                .parse_density_function_from_value_and_name(final_density_value, "final_density");
             self.arena.alloc(model::DensityType::NamedDensityReference {
                 name: self.arena.alloc("final_density_with_beardify".to_string()),
                 argument: self.arena.alloc(model::DensityType::Add {
@@ -329,6 +344,10 @@ impl<'m> MinecraftData<'m> {
                     right: self.arena.alloc(model::DensityType::Beardify),
                 }),
             })
+            // self.arena.alloc(model::DensityType::NamedDensityReference {
+            //     name: self.arena.alloc("final_density_with_beardify".to_string()),
+            //     argument: self.arena.alloc(model::DensityType::Beardify),
+            // })
         } else {
             panic!("Missing final_density field in noise_router")
         };
@@ -350,17 +369,6 @@ impl<'m> MinecraftData<'m> {
             } else {
                 panic!("Missing fluid_level_spread field in noise_router")
             };
-        // let initial_density_without_jaggedness =
-        //     if let Some(initial_density_without_jaggedness_value) =
-        //         value.get("initial_density_without_jaggedness")
-        //     {
-        //         self.parse_density_function_from_value_and_name(
-        //             initial_density_without_jaggedness_value,
-        //             "initial_density_without_jaggedness",
-        //         )
-        //     } else {
-        //         panic!("Missing initial_density_without_jaggedness field in noise_router")
-        //     };
         let preliminary_surface_level =
             if let Some(preliminary_surface_level_value) = value.get("preliminary_surface_level") {
                 self.parse_density_function_from_value_and_name(
@@ -406,6 +414,18 @@ impl<'m> MinecraftData<'m> {
         } else {
             panic!("Missing vein_toggle field in noise_router")
         };
+
+        let aquifer_sampler = self.arena.alloc(model::DensityType::NamedDensityReference {
+            name: self.arena.alloc("aquifer".into()),
+            argument: self.arena.alloc(model::DensityType::Aquifer {
+                final_density: final_density_with_beard,
+                depth,
+                erosion,
+                floodedness: fluid_level_floodedness,
+                spread: fluid_level_spread,
+            }),
+        });
+
         NoiseRouter {
             barrier: DensitySource::SingleSamplingDensity { density: barrier },
             // continents: DensitySource::SingleSamplingDensity {
@@ -440,6 +460,15 @@ impl<'m> MinecraftData<'m> {
             },
             final_density: DensitySource::MultiSamplingDensity {
                 density: final_density,
+                dimensions: (
+                    self.chunk_size as i32,
+                    settings.height,
+                    self.chunk_size as i32,
+                ),
+                coordinate_type: CoordinateType::Terrain,
+            },
+            final_density_with_beard: DensitySource::MultiSamplingDensity {
+                density: final_density_with_beard,
                 dimensions: (
                     self.chunk_size as i32,
                     settings.height,
@@ -510,28 +539,44 @@ impl<'m> MinecraftData<'m> {
             },
             // vein_ridged: DensitySource::SingleSamplingDensity { density: vein_ridged },
             // vein_toggle: DensitySource::SingleSamplingDensity { density: vein_toggle },
+            aquifer_sampler: DensitySource::MultiSamplingDensity {
+                density: aquifer_sampler,
+                dimensions: (
+                    self.chunk_size as i32,
+                    settings.height,
+                    self.chunk_size as i32,
+                ),
+                coordinate_type: CoordinateType::Terrain,
+            },
         }
     }
 }
 
 impl<'m> NoiseRouter<'m> {
     pub fn all_densities(&self) -> Vec<DensitySource<'m>> {
+        // vec![
+        //     self.barrier,
+        //     self.continents,
+        //     self.depth,
+        //     self.erosion,
+        //     self.final_density,
+        //     self.fluid_level_floodedness,
+        //     self.fluid_level_spread,
+        //     self.preliminary_surface_level,
+        //     self.lava,
+        //     self.ridges,
+        //     self.temperature,
+        //     self.vegetation,
+        //     self.vein_gap,
+        //     self.vein_ridged,
+        //     self.vein_toggle,
+        // ]
         vec![
-            self.barrier,
-            self.continents,
-            self.depth,
-            self.erosion,
-            self.final_density,
-            self.fluid_level_floodedness,
-            self.fluid_level_spread,
-            self.preliminary_surface_level,
-            self.lava,
-            self.ridges,
-            self.temperature,
-            self.vegetation,
+            self.final_density_with_beard,
             self.vein_gap,
             self.vein_ridged,
             self.vein_toggle,
+            self.aquifer_sampler,
         ]
     }
 }

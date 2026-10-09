@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 
 // Adjust import paths to match your actual crate names
-use tungsten_mc_compile::{CompilerConfig, MinecraftCompilerConfig, run_generation};
+use tungsten_mc_compile::{run_generation, CompilerConfig, MinecraftCompilerConfig};
 
 fn debug_print(_msg: &str) {
     //println!("cargo:warning={}", msg);
@@ -29,6 +29,7 @@ fn main() {
 
     // 6. Write outputs to source files
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let src_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("src");
 
     if let Some(mut rcl_code) = output.rcl {
         debug_print("Writing RCL output to OUT_DIR...");
@@ -45,7 +46,7 @@ fn main() {
 
     let structure_weight_table = compute_structure_weight_table();
     // paste into a file for inclusion
-    let swt_path = out_dir.join("structure_weight_table.dat");
+    let swt_path = src_dir.join("structure_weight_table.dat");
     let out = format!("{:?}", structure_weight_table);
     fs::write(&swt_path, out).expect("Failed to write structure weight table");
 }
@@ -58,7 +59,8 @@ fn compute_structure_weight_table() -> [f64; 13824] {
     while i < 24 {
         while j < 24 {
             while k < 24 {
-                array[i * 24 * 24 + j * 24 + k] = calculate_structure_weight(j as i32 - 12, k as i32 - 12, i as i32 - 12);
+                array[i * 24 * 24 + j * 24 + k] =
+                    calculate_structure_weight(j as i32 - 12, k as i32 - 12, i as i32 - 12);
                 k += 1;
             }
             j += 1;
@@ -71,10 +73,9 @@ fn compute_structure_weight_table() -> [f64; 13824] {
 }
 
 fn calculate_structure_weight(x: i32, y: i32, z: i32) -> f64 {
-    let y = y as f64 - 0.5;
+    let y = y as f64 + 0.5;
     let x = x as f64;
     let z = z as f64;
     let d = (x * x + y * y + z * z);
     std::f64::consts::E.powf(-d / 16.0)
 }
-

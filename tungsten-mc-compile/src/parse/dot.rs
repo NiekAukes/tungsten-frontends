@@ -147,6 +147,8 @@ impl DotPrinter {
             }
             DensityType::Invert { .. } => format!("Invert\n"),
             DensityType::Beardify => format!("Beardify"),
+            DensityType::Aquifer { .. } => format!("Aquifer"),
+            DensityType::Custom(name) => format!("Custom(name={})", name),
         }
     }
 
@@ -289,6 +291,45 @@ impl DotPrinter {
             DensityType::Beardify => {
                 self.nodes
                     .push(format!("    {} [label=\"Beardify\"];", parent_id));
+            }
+            DensityType::Aquifer {
+                final_density,
+                depth,
+                erosion,
+                floodedness,
+                spread,
+            } => {
+                let final_density_id = self.visit_density(final_density);
+                let depth_id = self.visit_density(depth);
+                let erosion_id = self.visit_density(erosion);
+                let floodedness_id = self.visit_density(floodedness);
+                let spread_id = self.visit_density(spread);
+                self.edges.push(format!(
+                    "    {} -> {} [label=\"final_density\"];",
+                    parent_id, final_density_id
+                ));
+                self.edges.push(format!(
+                    "    {} -> {} [label=\"depth\"];",
+                    parent_id, depth_id
+                ));
+                self.edges.push(format!(
+                    "    {} -> {} [label=\"erosion\"];",
+                    parent_id, erosion_id
+                ));
+                self.edges.push(format!(
+                    "    {} -> {} [label=\"floodedness\"];",
+                    parent_id, floodedness_id
+                ));
+                self.edges.push(format!(
+                    "    {} -> {} [label=\"spread\"];",
+                    parent_id, spread_id
+                ));
+            }
+            DensityType::Custom(name) => {
+                self.nodes.push(format!(
+                    "    {} [label=\"Custom(name={})\"];",
+                    parent_id, name
+                ));
             }
         }
     }

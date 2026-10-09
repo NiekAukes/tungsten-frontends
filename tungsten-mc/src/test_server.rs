@@ -1,13 +1,15 @@
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
 
+use crate::density_function::HostConsts;
+
 use crate::utils::make_permutation_table;
 
-use crate::mathf64::{Pos3, Vec3, as_index};
+use crate::mathf64::{as_index, Pos3, Vec3};
 use crate::perlin::{create_perlin_noise_sampler, sample_perlin};
-use crate::utilsf64::{PerlinNoiseSampler, abs, clamp, fade, hermite, max, min};
+use crate::utilsf64::{abs, clamp, fade, hermite, max, min, PerlinNoiseSampler};
 use crate::xoroshiro::{
-    Xoroshiro128PlusPlusRandom, XoroshiroSeed, create_xoroshiro_seed, create_xoroshiro_seed_str,
+    create_xoroshiro_seed, create_xoroshiro_seed_str, Xoroshiro128PlusPlusRandom, XoroshiroSeed,
 };
 use crate::{density_function, orchestration, utils};
 
@@ -158,7 +160,7 @@ use crate::orchestration::{self as orch, OrchestrationOutput, PermutationTables}
 
 const NUM_OUTPUTS: usize = 1;
 const MIN_Y: i32 = -64;
-const HEIGHT: usize = (320 - MIN_Y) as usize;
+const HEIGHT: usize = (2032 - MIN_Y) as usize;
 const DIMS: usize = 16 * HEIGHT * 16;
 
 /// Run a single-density orchestration by name.
@@ -168,12 +170,17 @@ fn run_single_density(
     origin: Vec3,
     perm_tables: &PermutationTables,
 ) -> Option<Box<[f64; DIMS]>> {
+    let host_consts = HostConsts::default();
     match name {
         // "barrier" => Some(orch::orchestrate_barrier(origin, perm_tables)),
         // "continents" => Some(orch::orchestrate_continents(origin, perm_tables)),
         // "depth" => Some(orch::orchestrate_depth(origin, perm_tables)),
         // "erosion" => Some(orch::orchestrate_erosion(origin, perm_tables)),
-        "final_density" => Some(orch::orchestrate_final_density(origin, perm_tables)),
+        "final_density" => Some(orch::orchestrate_final_density_with_beardify(
+            origin,
+            perm_tables,
+            &host_consts,
+        )),
         // "fluid_level_floodedness" => Some(orch::orchestrate_fluid_level_floodedness(
         //     origin,
         //     perm_tables,
@@ -222,7 +229,7 @@ fn get_output(outputs: &OrchestrationOutput, idx: usize) -> Option<&Box<[f64; DI
         // 6 => Some(&outputs.vein_ridged),
         // 7 => Some(&outputs.depth),
         // 8 => Some(&outputs.fluid_level_spread),
-        9 => Some(&outputs.final_density),
+        9 => Some(&outputs.final_density_with_beardify),
         // 10 => Some(&outputs.ridges),
         // 11 => Some(&outputs.lava),
         // 12 => Some(&outputs.erosion),
@@ -368,7 +375,7 @@ fn dispatch(line: &str) -> String {
                 // ("vein_ridged", &outputs.vein_ridged),
                 // ("depth", &outputs.depth),
                 // ("fluid_level_spread", &outputs.fluid_level_spread),
-                ("final_density", &outputs.final_density),
+                ("final_density", &outputs.final_density_with_beardify),
                 // ("ridges", &outputs.ridges),
                 // ("lava", &outputs.lava),
                 // ("erosion", &outputs.erosion),

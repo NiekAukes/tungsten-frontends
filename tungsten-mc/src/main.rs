@@ -1,6 +1,10 @@
 #![allow(warnings)]
 
-include!(concat!(env!("OUT_DIR"), "/generated_worldgen.rs"));
+use crate::mathf64::*;
+use crate::utilsf64::*;
+
+// include!(concat!(env!("OUT_DIR"), "/generated_worldgen.rs"));
+include!("density.rs");
 
 use std::{
     io::Write,
@@ -9,9 +13,9 @@ use std::{
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
+use crate::density_function::HostConsts;
 use crate::{mathf64::Vec3, utilsf64::set_perlin_seed};
 use rayon::prelude::*;
-use crate::density_function::HostConsts;
 
 //mod density_function;
 //mod gpu_orchestrator;
@@ -20,7 +24,7 @@ pub mod mathf64;
 //mod orchestration;
 pub mod perlin;
 pub mod random;
-// mod test_server;
+mod test_server;
 pub mod utils;
 pub mod utilsf64;
 pub mod xoroshiro;
@@ -29,8 +33,8 @@ impl Default for HostConsts {
     fn default() -> Self {
         HostConsts {
             base_box: BlockBox::default(),
-            jigsaw_array: [Jigsaw::default(); 50],
-            piece_array: [Piece::default(); 50],
+            jigsaw_array: [Jigsaw::default(); 500],
+            piece_array: [Piece::default(); 500],
         }
     }
 }
@@ -52,7 +56,7 @@ fn run() {
             .get(pos + 1)
             .map(|s| s.as_str())
             .unwrap_or("127.0.0.1:9876");
-        // test_server::run(addr);
+        test_server::run(addr);
         return;
     }
 
@@ -169,7 +173,11 @@ fn run_benchmark(output: &str) {
             let host_consts = HostConsts::default();
 
             let t0 = Instant::now();
-            let _result = orchestration::orchestration(origin, perm_tables, &host_consts);
+            let _result = orchestration::orchestrate_final_density_with_beardify(
+                origin,
+                perm_tables,
+                &host_consts,
+            );
             let duration_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
             records.push(Record {
@@ -280,34 +288,23 @@ fn run_benchmark_mp(output: &str) {
     let elapsed_time = start_time.elapsed().as_secs_f64() * 1000.0;
 
     // Write CSV
-    let file = std::fs::File::create(output)
-        .expect("Failed to create output file");
+    let file = std::fs::File::create(output).expect("Failed to create output file");
 
     let mut writer = std::io::BufWriter::new(file);
 
-    writeln!(
-        writer,
-        "chunk_x,chunk_z,duration_ms,timestamp_ms"
-    )
-    .unwrap();
+    writeln!(writer, "chunk_x,chunk_z,duration_ms,timestamp_ms").unwrap();
 
     for r in &records {
         writeln!(
             writer,
             "{},{},{:.3},{}",
-            r.chunk_x,
-            r.chunk_z,
-            r.duration_ms,
-            r.timestamp_ms
+            r.chunk_x, r.chunk_z, r.duration_ms, r.timestamp_ms
         )
         .unwrap();
     }
 
     // Statistics
-    let durations: Vec<f64> = records
-        .iter()
-        .map(|r| r.duration_ms)
-        .collect();
+    let durations: Vec<f64> = records.iter().map(|r| r.duration_ms).collect();
 
     let n = durations.len() as f64;
 

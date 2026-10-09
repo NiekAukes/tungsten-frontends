@@ -69,7 +69,7 @@ pub fn advanced_hermite<const N: usize>(
         return value + derivative * (coordinate - location);
     }
     let index_minus_1 = index - 1;
-    let h_minus_g = spline_values[index] - spline_values[index_minus_1];
+    let h_minus_g = spline_locations[index] - spline_locations[index_minus_1];
     let t = (coordinate - spline_locations[index_minus_1])
         / (spline_locations[index] - spline_locations[index_minus_1]);
     let value_minus_1 = spline_values[index_minus_1];
