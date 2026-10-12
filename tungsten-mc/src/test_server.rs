@@ -1,7 +1,7 @@
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
 
-use crate::density_function::HostConsts;
+use crate::orchestration::HostConsts;
 
 use crate::utils::make_permutation_table;
 
@@ -156,11 +156,10 @@ pub fn run(addr: &str) {
     }
 }
 
-use crate::orchestration::{self as orch, OrchestrationOutput, PermutationTables};
+use crate::orchestration::{self as orch};
 
-const NUM_OUTPUTS: usize = 1;
 const MIN_Y: i32 = -64;
-const HEIGHT: usize = (2032 - MIN_Y) as usize;
+const HEIGHT: usize = (320 - MIN_Y) as usize;
 const DIMS: usize = 16 * HEIGHT * 16;
 
 /// Run a single-density orchestration by name.
@@ -168,19 +167,18 @@ const DIMS: usize = 16 * HEIGHT * 16;
 fn run_single_density(
     name: &str,
     origin: Vec3,
-    perm_tables: &PermutationTables,
-) -> Option<Box<[f64; DIMS]>> {
+    orchestrator: &mut orchestration::Orchestration,
+) -> Option<Vec<f64>> {
     let host_consts = HostConsts::default();
     match name {
         // "barrier" => Some(orch::orchestrate_barrier(origin, perm_tables)),
         // "continents" => Some(orch::orchestrate_continents(origin, perm_tables)),
         // "depth" => Some(orch::orchestrate_depth(origin, perm_tables)),
         // "erosion" => Some(orch::orchestrate_erosion(origin, perm_tables)),
-        "final_density" => Some(orch::orchestrate_final_density_with_beardify(
+        "final_density" => Some(orchestrator.orchestrate_final_density_with_beardify(
             origin,
-            perm_tables,
             &host_consts,
-        )),
+        ).into()),
         // "fluid_level_floodedness" => Some(orch::orchestrate_fluid_level_floodedness(
         //     origin,
         //     perm_tables,
@@ -217,28 +215,6 @@ const VALID_DENSITY_NAMES: &[&str] = &[
     "vein_ridged",
     "vein_toggle",
 ];
-
-fn get_output(outputs: &OrchestrationOutput, idx: usize) -> Option<&Box<[f64; DIMS]>> {
-    match idx {
-        // 0 => Some(&outputs.temperature),
-        // 1 => Some(&outputs.vegetation),
-        // 2 => Some(&outputs.initial_density_without_jaggedness),
-        // 3 => Some(&outputs.vein_toggle),
-        // 4 => Some(&outputs.continents),
-        // 5 => Some(&outputs.vein_gap),
-        // 6 => Some(&outputs.vein_ridged),
-        // 7 => Some(&outputs.depth),
-        // 8 => Some(&outputs.fluid_level_spread),
-        9 => Some(&outputs.final_density_with_beardify),
-        // 10 => Some(&outputs.ridges),
-        // 11 => Some(&outputs.lava),
-        // 12 => Some(&outputs.erosion),
-        // 13 => Some(&outputs.barrier),
-        // 14 => Some(&outputs.fluid_level_floodedness),
-        _ => None,
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Dispatcher
 // ---------------------------------------------------------------------------
@@ -321,48 +297,18 @@ fn dispatch(line: &str) -> String {
             }
         }
 
-        // density_point <seed> <ox> <oy> <oz> <px> <py> <pz> <output_idx>
-        "density_point" => with_seed_and_f64_args(args, 7, |seed, a| {
-            let origin = Vec3::new(a[0], a[1], a[2]);
-            let patch_pos = Pos3 {
-                x: a[3] as i32,
-                y: a[4] as i32,
-                z: a[5] as i32,
-            };
-            let output_idx = a[6] as usize;
-
-            if output_idx >= NUM_OUTPUTS {
-                return format!(
-                    "ERR output_idx must be 0-{}, got {}",
-                    NUM_OUTPUTS - 1,
-                    output_idx
-                );
-            }
-
-            let outputs = super::orchestration_seeded(seed, origin);
-            let idx = as_index(patch_pos, 16, 256, 16) as usize;
-
-            if idx >= 65536 {
-                return format!("ERR invalid patch position: {}", idx);
-            }
-
-            match get_output(&outputs, output_idx) {
-                Some(output) => {
-                    let value = output[idx];
-                    format!("OK {value:.10}")
-                }
-                None => format!("ERR output_idx out of range"),
-            }
-        }),
-
         // density_chunk <seed> <ox> <oy> <oz>
         "density_chunk" => with_seed_and_f64_args(args, 3, |seed, a| {
             let origin = Vec3::new(a[0], a[1], a[2]);
 
-            let outputs = super::orchestration_seeded(seed, origin);
+            let mut orchestrator = orchestration::Orchestration::new(seed);
+            let output = orchestrator.orchestrate_final_density_with_beardify(
+                origin,
+                &HostConsts::default(),
+            );
 
             // Return min/max/mean for each named output
-            let all_outputs: [(&str, &Box<[f64; DIMS]>); NUM_OUTPUTS] = [
+            let all_outputs: [(&str, Vec<f64>); 1] = [
                 // ("temperature", &outputs.temperature),
                 // ("vegetation", &outputs.vegetation),
                 // (
@@ -375,7 +321,7 @@ fn dispatch(line: &str) -> String {
                 // ("vein_ridged", &outputs.vein_ridged),
                 // ("depth", &outputs.depth),
                 // ("fluid_level_spread", &outputs.fluid_level_spread),
-                ("final_density", &outputs.final_density_with_beardify),
+                ("final_density", output.into()),
                 // ("ridges", &outputs.ridges),
                 // ("lava", &outputs.lava),
                 // ("erosion", &outputs.erosion),
@@ -385,7 +331,6 @@ fn dispatch(line: &str) -> String {
             let mut stats = Vec::new();
             for (name, output) in &all_outputs {
                 {
-                    let output = *output;
                     let mut min = f64::INFINITY;
                     let mut max = f64::NEG_INFINITY;
                     let mut sum = 0.0;
@@ -409,28 +354,20 @@ fn dispatch(line: &str) -> String {
         // density_chunk_all <seed> <ox> <oy> <oz> <output_idx>
         "density_chunk_all" => with_seed_and_f64_args(args, 4, |seed, a| {
             let origin = Vec3::new(a[0], a[1], a[2]);
-            let output_idx = a[3] as usize;
 
-            if output_idx >= NUM_OUTPUTS {
-                return format!(
-                    "ERR output_idx must be 0-{}, got {}",
-                    NUM_OUTPUTS - 1,
-                    output_idx
-                );
-            }
 
-            let outputs = super::orchestration_seeded(seed, origin);
+            let mut orchestrator = orchestration::Orchestration::new(seed);
+            let output = orchestrator.orchestrate_final_density_with_beardify(
+                origin,
+                &HostConsts::default(),
+            );
 
-            match get_output(&outputs, output_idx) {
-                Some(output) => {
-                    // Format all 65536 values from the requested output
-                    let formatted: Vec<String> =
-                        output.iter().map(|v| format!("{:.6}", v)).collect();
+            // Format all values from the requested output
+            let formatted: Vec<String> =
+                output.iter().map(|v| format!("{:.6}", v)).collect();
 
-                    format!("OK {}", formatted.join(" "))
-                }
-                None => format!("ERR output_idx out of range"),
-            }
+            format!("OK {}", formatted.join(" "))
+
         }),
 
         // ── Permutation / Double Perlin commands ────────────────────────────
@@ -630,8 +567,8 @@ fn dispatch(line: &str) -> String {
             };
             let density_name = args[4];
             let origin = Vec3::new(ox, oy, oz);
-            let perm_tables = utils::set_perlin_seed(seed);
-            match run_single_density(density_name, origin, perm_tables) {
+            let mut orchestrator = orchestration::Orchestration::new(seed);
+            match run_single_density(density_name, origin, &mut orchestrator) {
                 Some(output) => {
                     let mut min = f64::INFINITY;
                     let mut max = f64::NEG_INFINITY;
@@ -700,8 +637,8 @@ fn dispatch(line: &str) -> String {
             if idx >= DIMS {
                 return format!("ERR invalid patch position: {idx}");
             }
-            let perm_tables = utils::set_perlin_seed(seed);
-            match run_single_density(density_name, origin, perm_tables) {
+            let mut orchestrator = orchestration::Orchestration::new(seed);
+            match run_single_density(density_name, origin, &mut orchestrator) {
                 Some(output) => {
                     let value = output[idx];
                     format!("OK {value}")
@@ -739,8 +676,8 @@ fn dispatch(line: &str) -> String {
             };
             let density_name = args[4];
             let origin = Vec3::new(ox, oy, oz);
-            let perm_tables = utils::set_perlin_seed(seed);
-            match run_single_density(density_name, origin, perm_tables) {
+            let mut orchestration = orchestration::Orchestration::new(seed);
+            match run_single_density(density_name, origin, &mut orchestration) {
                 Some(output) => {
                     let formatted: Vec<String> = output.iter().map(|v| format!("{}", v)).collect();
                     format!("OK {}", formatted.join(" "))

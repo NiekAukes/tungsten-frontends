@@ -1,4 +1,3 @@
-use crate::orchestration::{PermutationTables, make_permutation_tables, orchestration};
 use crate::perlin::{create_perlin_noise_sampler, sample_perlin};
 use crate::random::Random;
 use crate::{
@@ -8,10 +7,10 @@ use crate::{
 use std::cell::RefCell;
 
 // Thread-local storage for the seeded Perlin noise sampler
-thread_local! {
-    static PERLIN_SAMPLER: RefCell<Option<&'static PermutationTables>> = RefCell::new(None);
-    static CURRENT_SEED: RefCell<Option<i64>> = RefCell::new(None);
-}
+// thread_local! {
+//     static PERLIN_SAMPLER: RefCell<Option<&'static PermutationTables>> = RefCell::new(None);
+//     static CURRENT_SEED: RefCell<Option<i64>> = RefCell::new(None);
+// }
 
 #[derive(Debug, Clone)]
 pub struct PerlinNoiseSampler {
@@ -23,17 +22,17 @@ pub struct PerlinNoiseSampler {
 
 /// Initialize the thread-local Perlin sampler with the given seed.
 /// Must be called before any perlin() calls in this thread.
-pub fn set_perlin_seed(seed: i64) -> &'static PermutationTables {
-    if CURRENT_SEED.with(|s| s.borrow().map_or(true, |current| current != seed)) {
-        let perm_tables = make_permutation_tables(seed);
-        // leak the PermutationTables to get a 'static reference (safe because we never modify it after this)
-        let perm_tables_ref: &'static PermutationTables = Box::leak(Box::new(perm_tables));
+// pub fn set_perlin_seed(seed: i64) -> &'static PermutationTables {
+//     if CURRENT_SEED.with(|s| s.borrow().map_or(true, |current| current != seed)) {
+//         let perm_tables = make_permutation_tables(seed);
+//         // leak the PermutationTables to get a 'static reference (safe because we never modify it after this)
+//         let perm_tables_ref: &'static PermutationTables = Box::leak(Box::new(perm_tables));
 
-        PERLIN_SAMPLER.with(|p| *p.borrow_mut() = Some(perm_tables_ref));
-        CURRENT_SEED.with(|s| *s.borrow_mut() = Some(seed));
-    }
-    PERLIN_SAMPLER.with(|p| p.borrow().unwrap())
-}
+//         PERLIN_SAMPLER.with(|p| *p.borrow_mut() = Some(perm_tables_ref));
+//         CURRENT_SEED.with(|s| *s.borrow_mut() = Some(seed));
+//     }
+//     PERLIN_SAMPLER.with(|p| p.borrow().unwrap())
+// }
 
 // Helper noise / interpolation functions
 pub fn hermite(t: f32, p0: f32, p1: f32, m0: f32, m1: f32) -> f32 {

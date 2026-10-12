@@ -17,9 +17,8 @@ pub mod utilsf64;
 pub mod xoroshiro;
 
 pub use mathf64::{Pos3, Vec3};
-pub use utils::set_perlin_seed;
 
-use crate::density_function::HostConsts;
+use crate::orchestration::HostConsts;
 
 /// Deserialize HostConsts from binary data
 /// The binary format is a direct representation: BlockBox (48 bytes) + 150 Jigsaws (2400 bytes) + 150 Pieces (8400 bytes)
@@ -272,12 +271,6 @@ pub fn deserialize_host_consts(data: &[u8]) -> Result<HostConsts, String> {
 //     [a, b, c, d, e, f, g, h, i, j, k, l, m]
 // }
 
-/// Sample density at a single point given a seed and origin.
-/// Returns the main final density value (the 12th output, index 11).
-pub fn sample_density_at(seed: i64, origin: Vec3) -> f64 {
-    let outputs = orchestration_seeded(seed, origin);
-    outputs.final_density[0]
-}
 impl Default for HostConsts {
     fn default() -> Self {
         HostConsts {
@@ -286,12 +279,4 @@ impl Default for HostConsts {
             piece_array: [Piece::default(); 500],
         }
     }
-}
-
-/// Initialize the Perlin sampler with the given seed before computing density
-pub fn orchestration_seeded(seed: i64, origin: Vec3) -> orchestration::OrchestrationOutput {
-    let permutation_tables = set_perlin_seed(seed);
-    let host_consts = HostConsts::default();
-
-    orchestration::orchestration(origin, permutation_tables, &host_consts)
 }

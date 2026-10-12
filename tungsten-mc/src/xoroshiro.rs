@@ -15,7 +15,7 @@ pub fn mix_stafford13(mut seed: i64) -> i64 {
 
 // ── XoroshiroSeed (inner record from RandomSeed.java) ────────────────────────
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub struct XoroshiroSeed {
     pub seed_lo: i64,
     pub seed_hi: i64,
@@ -225,13 +225,23 @@ impl Xoroshiro128PlusPlusRandom {
     }
 }
 
+#[derive(Clone, Debug, Copy)]
 pub struct XoroshiroRandomSplitter {
     seed: XoroshiroSeed,
 }
 
 impl XoroshiroRandomSplitter {
-    pub fn split(&mut self, seed_low: i64, seed_high: i64) -> Xoroshiro128PlusPlusRandom {
+    pub fn split(&self, seed_low: i64, seed_high: i64) -> Xoroshiro128PlusPlusRandom {
         let new_seed = self.seed.split_with(seed_low, seed_high);
+        Xoroshiro128PlusPlusRandom::from_seed(&new_seed)
+    }
+
+    pub fn split_space(&self, x: i32, y: i32, z: i32) -> Xoroshiro128PlusPlusRandom {
+        let mut l: i64 = (x * 3129871 ^ z * 116129781 ^ y) as i64;
+        l = l * l * 42317861 + l * 11;
+        l >>= 16;
+        let mut m = l ^ self.seed.seed_lo;
+        let new_seed = self.seed.split_with(m, self.seed.seed_hi);
         Xoroshiro128PlusPlusRandom::from_seed(&new_seed)
     }
 }

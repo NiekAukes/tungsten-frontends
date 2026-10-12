@@ -298,6 +298,7 @@ impl DotPrinter {
                 erosion,
                 floodedness,
                 spread,
+                fluid_type,
             } => {
                 let final_density_id = self.visit_density(final_density);
                 let depth_id = self.visit_density(depth);
@@ -323,6 +324,11 @@ impl DotPrinter {
                 self.edges.push(format!(
                     "    {} -> {} [label=\"spread\"];",
                     parent_id, spread_id
+                ));
+                let fluid_type_id = self.visit_density(fluid_type);
+                self.edges.push(format!(
+                    "    {} -> {} [label=\"fluid_type\"];",
+                    parent_id, fluid_type_id
                 ));
             }
             DensityType::Custom(name) => {

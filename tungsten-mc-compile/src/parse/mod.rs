@@ -200,6 +200,7 @@ impl<'m> MinecraftData<'m> {
                 size_vertical: 2,
             },
             noise_router: router,
+            sea_level: 63,
         };
         MinecraftData {
             arena,
@@ -274,6 +275,12 @@ impl<'m> MinecraftData<'m> {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
+        let sea_level = value
+            .get("sea_level")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32)
+            .unwrap_or(63);
+
         // legacy_random_source is ignored
 
         let noise_value = value.get("noise").expect("noise field missing");
@@ -291,6 +298,7 @@ impl<'m> MinecraftData<'m> {
             disable_mob_generation,
             noise,
             noise_router,
+            sea_level,
         })
     }
 
@@ -369,6 +377,7 @@ impl<'m> MinecraftData<'m> {
             } else {
                 panic!("Missing fluid_level_spread field in noise_router")
             };
+
         let preliminary_surface_level =
             if let Some(preliminary_surface_level_value) = value.get("preliminary_surface_level") {
                 self.parse_density_function_from_value_and_name(
@@ -418,11 +427,12 @@ impl<'m> MinecraftData<'m> {
         let aquifer_sampler = self.arena.alloc(model::DensityType::NamedDensityReference {
             name: self.arena.alloc("aquifer".into()),
             argument: self.arena.alloc(model::DensityType::Aquifer {
-                final_density: final_density_with_beard,
+                final_density: final_density,
                 depth,
                 erosion,
                 floodedness: fluid_level_floodedness,
                 spread: fluid_level_spread,
+                fluid_type: lava,
             }),
         });
 
@@ -572,10 +582,10 @@ impl<'m> NoiseRouter<'m> {
         //     self.vein_toggle,
         // ]
         vec![
-            self.final_density_with_beard,
-            self.vein_gap,
-            self.vein_ridged,
-            self.vein_toggle,
+            // self.final_density_with_beard,
+            // self.vein_gap,
+            // self.vein_ridged,
+            // self.vein_toggle,
             self.aquifer_sampler,
         ]
     }

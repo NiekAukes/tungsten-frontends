@@ -1,5 +1,7 @@
 use std::{cell::LazyCell, sync::LazyLock};
 
+use crate::utilsf64::Config;
+
 #[derive(Copy, Clone, Debug)]
 pub struct Vec3 {
     pub x: f64,
@@ -316,8 +318,23 @@ impl Into<Pos3> for PositionIterator {
     }
 }
 
+// #[inline(always)]
+// pub fn iter_3d(mx: i32, my: i32, mz: i32) -> Iter3D {
+//     Iter3D {
+//         idx: 0,
+//         x: 0,
+//         y: 0,
+//         z: 0,
+//         mx,
+//         my,
+//         mz,
+//     }
+// }
 #[inline(always)]
-pub fn iter_3d(mx: i32, my: i32, mz: i32) -> Iter3D {
+pub fn iter_3d(config: &Config) -> Iter3D {
+    let mx = config.dimensions.0;
+    let my = config.dimensions.1;
+    let mz = config.dimensions.2;
     Iter3D {
         idx: 0,
         x: 0,

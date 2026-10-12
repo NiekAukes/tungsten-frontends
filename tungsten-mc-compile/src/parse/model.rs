@@ -31,10 +31,12 @@ pub struct NoiseGeneratorSettings<'m> {
     pub aquifers_enabled: bool,
     pub default_block: String,
     pub default_fluid: String,
+    /// IMPORTANT: This is not sea level! It represents the default fluid state in the world.
     pub default_fluid_level: i32,
     pub disable_mob_generation: bool,
     pub noise: NoiseSettings,
     pub noise_router: NoiseRouter<'m>,
+    pub sea_level: i32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -223,6 +225,7 @@ pub enum DensityType<'m> {
         erosion: Density<'m>,
         floodedness: Density<'m>,
         spread: Density<'m>,
+        fluid_type: Density<'m>,
     },
 
     // WaterTable {
@@ -445,6 +448,7 @@ impl Hash for DensityType<'_> {
                 erosion,
                 floodedness,
                 spread,
+                fluid_type,
             } => {
                 30.hash(state);
                 final_density.hash(state);
@@ -452,6 +456,7 @@ impl Hash for DensityType<'_> {
                 erosion.hash(state);
                 floodedness.hash(state);
                 spread.hash(state);
+                fluid_type.hash(state);
             }
 
             DensityType::Custom(name) => {

@@ -1,0 +1,21 @@
+[package]
+name = "toquifer"
+version = "0.211.0"
+edition = "2021"
+authors = ["Niek Aukes"]
+description = "Minecraft worldgen runtime library with optimized implementations of density functions, noise generators, and utility functions"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/NiekAukes/tungsten-frontends"
+readme = "README.md"
+keywords = ["minecraft", "worldgen", "noise", "perlin", "density"]
+categories = ["game-engines", "algorithms"]
+exclude = [
+    "target/",
+]
+
+[dependencies]
+md5 = "0.7.0"
+bytemuck = { version = "1", features = ["derive"] }
+pollster = "0.4"
+fast-float-to-integer = "0.1.0"
+crossterm = "0.28"

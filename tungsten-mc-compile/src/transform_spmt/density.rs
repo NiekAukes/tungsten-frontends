@@ -225,28 +225,6 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             position_scale,
             false,
         );
-        // add the permutation tables to the function arguments
-        for perm_table in &perm_tables {
-            let param_name = match perm_table {
-                PermutationTableInput::PerlinNoise {
-                    ident,
-                    subident,
-                    subident_index,
-                } => format!(
-                    "perm_table_{}_{}_{}",
-                    ident,
-                    subident_index,
-                    subident.as_ref().unwrap_or(&"".to_string())
-                ),
-                PermutationTableInput::Base3DNoise => "base3d_perm_table".to_string(),
-            };
-            function
-                .parameters
-                .push(Var::new(self.arena.alloc(Variable {
-                    name: Name::Named(param_name),
-                    t: VariableType::PermutationTable,
-                })));
-        }
         let function = FunctionRef::new(self.arena.alloc(function));
         (function, perm_tables)
     }
@@ -707,9 +685,14 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     self.density_function
                         .permutation_table_inputs
                         .extend(perm_tables);
+                    let scaled_rpos = self.rpos3
+                        * Expression::Construct {
+                            t: VariableType::Vec3,
+                            args: vec![xz_scale.into(), y_scale.into(), xz_scale.into()],
+                        };
                     Expression::FunctionCall {
                         function: fref,
-                        parameters: vec![self.rpos3.into()],
+                        parameters: vec![scaled_rpos],
                     }
                 } else {
                     // A noise call specifically
@@ -1436,12 +1419,9 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 self.density_function
                     .permutation_table_inputs
                     .extend(perm_tables);
-                let parameters = std::iter::once(shifted_position.into())
-                    .chain(perm_tables_args)
-                    .collect();
                 let call = Expression::FunctionCall {
                     function: noise_function_ref,
-                    parameters,
+                    parameters: vec![shifted_position.into()],
                 };
                 // multiply the result by 4
                 Expression::BinaryOp {
@@ -1675,13 +1655,9 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     left: Box::new(Expression::Variable(self.rpos3.clone())),
                     right: Box::new(Expression::Variable(rarity_call_var.clone())),
                 };
-
-                let parameters = std::iter::once(shifted_position.into())
-                    .chain(perm_tables_args)
-                    .collect();
                 let noise_call = Expression::FunctionCall {
                     function: noise_function_ref,
-                    parameters,
+                    parameters: vec![shifted_position],
                 };
                 Expression::BinaryOp {
                     op: BinaryOperator::Multiply,
@@ -1854,12 +1830,9 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     .density_function
                     .permutation_table_inputs
                     .extend(perm_tables);
-                let parameters = std::iter::once(shifted_position.into())
-                    .chain(perm_tables_args)
-                    .collect();
                 Expression::FunctionCall {
                     function: noise_function_ref,
-                    parameters,
+                    parameters: vec![shifted_position.into()],
                 }
             }),
         );

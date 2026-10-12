@@ -102,7 +102,8 @@ fn run_with_args(args: Args) {
 
     // 4. Configure the Compiler
     let config = CompilerConfig::new()
-        .with_rcl(true)
+        .with_rcl(false)
+        .with_rcl_new(true)
         .with_cuda(args.cuda) // Now respects the CLI flag
         .rcl_module_names("density_function", "orchestration")
         .with_wave_orchestration_graph(args.emit_intermediates);
@@ -135,7 +136,7 @@ fn run_with_args(args: Args) {
     }
 
     if args.rust || (!args.cuda && !args.rust) {
-        let Some(rcl_code) = compiled_output.rcl else {
+        let Some(rcl_code) = compiled_output.rcl_new else {
             eprintln!("No RCL output was generated.");
             return;
         };
