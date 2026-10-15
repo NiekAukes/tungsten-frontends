@@ -587,8 +587,8 @@ impl<'m> NoiseRouter<'m> {
             // self.vein_gap,
             // self.vein_ridged,
             // self.vein_toggle,
-            self.preliminary_surface_level,
-            // self.aquifer_sampler,
+            // self.preliminary_surface_level,
+            self.aquifer_sampler,
         ]
     }
 }

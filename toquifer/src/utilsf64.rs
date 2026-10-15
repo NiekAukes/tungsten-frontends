@@ -107,6 +107,11 @@ pub fn abs(x: f64) -> f64 {
 }
 
 #[inline(always)]
+pub fn abs_i32(x: i32) -> i32 {
+    x.abs()
+}
+
+#[inline(always)]
 pub fn max(a: f64, b: f64) -> f64 {
     a.max(b)
 }

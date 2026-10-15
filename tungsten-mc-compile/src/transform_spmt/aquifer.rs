@@ -118,6 +118,7 @@ extern_fns!(
 
     clamp(value: F64, min: F64, max: F64): F64,
     abs(value: F64): F64,
+    abs_i32(value: I32): I32,
     min_i32(a: I32, b: I32): I32,
     max_distance(a: F64, b: F64): F64,
     get_block_state_from_packed(closest_fluid_level: I64, y_level: I32): I32,
@@ -550,6 +551,15 @@ pub fn generate_general_aquifer_sampler<'a, 'm>(
     }
 
     builder.density_function.return_type = I32;
+
+    let calculate_density = generate_aquifer_calculate_density(builder);
+    builder
+        .density_function
+        .helper_functions
+        .push(calculate_density);
+    build!(builder, {
+        result_state = calculate_density.call([]);
+    });
 
     // result_state.into()
     BlockState::Special.needs_fluid_tick(false).into()
@@ -1231,6 +1241,181 @@ fn generate_fluid_level_sampler<'a, 'm>(
 
     builder.density_function.helper_functions.push(function2);
     (function, function2)
+}
+
+fn generate_aquifer_calculate_density<'a, 'm>(
+    builder: &mut DensityBuilder<'a, 'm>,
+) -> FunctionRef<'m> {
+    let rpos3 = newvar(builder.arena, "rpos3", VariableType::Vec3);
+    let block_state_1 = newvar(builder.arena, "block_state_1", VariableType::I32);
+    let block_state_2 = newvar(builder.arena, "block_state_2", VariableType::I32);
+    let fluid_level_1 = newvar(builder.arena, "fluid_level_1", VariableType::I32);
+    let fluid_level_2 = newvar(builder.arena, "fluid_level_2", VariableType::I32);
+    let barrier = newvar(builder.arena, "barrier", VariableType::F64);
+    let y = newvar(builder.arena, "y", VariableType::I32);
+    /*
+    int i = pos.blockY();
+    BlockState blockState = fluidLevel.getBlockState(i);
+    BlockState blockState2 = fluidLevel2.getBlockState(i);
+    */
+    let mut body = body!(builder, {
+        y = rpos3.field("y", F64).cast(I32);
+    });
+    /* ((blockState.isOf(Blocks.LAVA) && blockState2.isOf(Blocks.WATER)) || (blockState.isOf(Blocks.WATER) && blockState2.isOf(Blocks.LAVA)))
+    if ((!blockState.isOf(Blocks.LAVA) || !blockState2.isOf(Blocks.WATER)) && (!blockState.isOf(Blocks.WATER) || !blockState2.isOf(Blocks.LAVA))) {
+
+        */
+    body.extend(body!(builder, {
+        if (block_state_1
+            .eq_expr(i32::from(BlockState::Lava))
+            .and(block_state_2.eq_expr(i32::from(BlockState::Water)))
+            .or(block_state_1
+                .eq_expr(i32::from(BlockState::Water))
+                .and(block_state_2.eq_expr(i32::from(BlockState::Lava)))))
+        {
+            return 2.0;
+        }
+    }));
+
+    /*
+    int fluidLevelDifference = Math.abs(firstFluidLevel.y() - secondFluidLevel.y());
+    if (fluidLevelDifference == 0) {
+        // Same fluid height on both sides: no wall needed.
+        return 0.0;
+    }
+
+    */
+    let fluid_level_difference = newvar(builder.arena, "fluid_level_difference", VariableType::I32);
+    body.extend(body!(builder, {
+        fluid_level_difference = abs_i32(fluid_level_1 - fluid_level_2);
+        if (fluid_level_difference.eq_expr(0)) {
+            return 0.0;
+        }
+    }));
+    /*
+
+    // The wall is centered on the midpoint between the two fluid surfaces.
+    double midpointY = 0.5 * (firstFluidLevel.y() + secondFluidLevel.y());
+    double relativeY = blockY + 0.5 - midpointY; // > 0 above the midpoint, < 0 below it
+    double halfDifference = fluidLevelDifference / 2.0;
+    // Tuning constants for the vertical profile of the wall (same values appear as literals below).
+    double upperOffset = 0.0;
+    double upperOutsideDivisor = 2.5;
+    double upperInsideDivisor = 1.5;
+    double lowerOffset = 3.0;
+    double lowerOutsideDivisor = 10.0;
+    double lowerInsideDivisor = 3.0;
+    */
+    let mid_point_y = Expression::from(0.5f64) * (fluid_level_1 + fluid_level_2).cast(F64);
+    let relative_y = newvar(builder.arena, "relative_y", VariableType::F64);
+    let half_difference = newvar(builder.arena, "half_difference", VariableType::F64);
+    body.extend(body!(builder, {
+        relative_y = y.cast(F64) + 0.5 - mid_point_y;
+        half_difference = fluid_level_difference.cast(F64) / 2.0;
+    }));
+
+    /*
+    // How far inside the band [midpoint - halfDifference, midpoint + halfDifference] this block is
+    // (positive inside the band between the two fluid surfaces, negative outside it).
+    double distanceFromBoundary = halfDifference - Math.abs(relativeY);
+
+    // "pressure": a vertical profile that is strongest between the fluid surfaces and fades out
+    // outside them. Above the midpoint it falls off faster than below it, so walls stay thicker
+    // toward the bottom (the lower side gets a +3 offset and a gentler falloff).
+    double pressure;
+    if (relativeY > 0.0) {
+        double shiftedDistance = 0.0 + distanceFromBoundary;
+        if (shiftedDistance > 0.0) {
+            pressure = shiftedDistance / 1.5;
+        } else {
+            pressure = shiftedDistance / 2.5;
+        }
+    } else {
+        double shiftedDistance = 3.0 + distanceFromBoundary;
+        if (shiftedDistance > 0.0) {
+            pressure = shiftedDistance / 3.0;
+        } else {
+            pressure = shiftedDistance / 10.0;
+        }
+    } */
+    let pressure = newvar(builder.arena, "pressure", VariableType::F64);
+    let shifted_distance = newvar(builder.arena, "shifted_distance", VariableType::F64);
+    let divider = newvar(builder.arena, "divider", VariableType::F64);
+    let barrier_value = newvar(builder.arena, "barrier_value", VariableType::F64);
+    body.extend(body!(builder, {
+        shifted_distance = half_difference - abs(relative_y);
+        divider = 0.0;
+        barrier_value = barrier;
+        if (relative_y.gt(0.0).and(shifted_distance.gt(0.0))) {
+            divider = 1.5;
+        }
+        if (relative_y.gt(0.0).and(shifted_distance.le(0.0))) {
+            divider = 2.5;
+        }
+        if (relative_y.le(0.0)) {
+            shifted_distance = Expression::from(3.0) + shifted_distance;
+        }
+        if (relative_y.le(0.0).and(shifted_distance.gt(0.0))) {
+            divider = 3.0;
+        }
+        if (relative_y.le(0.0).and(shifted_distance.le(0.0))) {
+            divider = 10.0;
+        }
+        pressure = shifted_distance / divider;
+    }));
+
+    /*
+    // Add noise so the wall is irregular. If |pressure| > 2 the noise could not change the outcome
+    // anyway, so skip sampling it (an optimization), and sample it at most once per block via the cache.
+    double barrierThreshold = 2.0;
+    double barrierValue;
+    if (!(pressure < -2.0) && !(pressure > 2.0)) {
+        double cachedBarrier = barrierNoiseCache.doubleValue();
+        if (Double.isNaN(cachedBarrier)) {
+            double sampledBarrier = this.barrierNoise.sample(pos);
+            barrierNoiseCache.setValue(sampledBarrier);
+            barrierValue = sampledBarrier;
+        } else {
+            barrierValue = cachedBarrier;
+        }
+    } else {
+        barrierValue = 0.0;
+    }
+    */
+    body.extend(body!(builder, {
+        if (pressure.lt(-2.0).or(pressure.gt(2.0))) {
+            barrier_value = 0.0;
+        }
+
+        //return 2.0 * (barrierValue + pressure);
+        return Expression::from(2.0f64) * (barrier_value + pressure);
+    }));
+
+    // finalize function
+    let function = Interned::new(builder.arena.alloc(Function {
+        canonical_name: Some("aquifer_calculate_density".into()),
+        body,
+        parameters: vec![
+            rpos3,
+            block_state_1,
+            fluid_level_1,
+            block_state_2,
+            fluid_level_2,
+            barrier,
+        ],
+        variables: vec![
+            y,
+            pressure,
+            shifted_distance,
+            divider,
+            relative_y,
+            half_difference,
+            fluid_level_difference,
+            barrier_value,
+        ],
+        return_type: VariableType::F64,
+    }));
+    function
 }
 
 fn get_noise_based_fluid_level<'a, 'm>(
