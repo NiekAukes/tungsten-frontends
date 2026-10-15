@@ -131,9 +131,13 @@ pub fn sample_perlin_section(
 // ------------------ Helper Functions ------------------
 #[inline(always)]
 pub fn floor_int(v: f64) -> i32 {
-    // let i = v as i32;
-    // if v < i as f64 { i - 1 } else { i }
-    fast_float_to_integer::f64_to_i32(v)
+    let i = v as i32;
+    if v < i as f64 {
+        i - 1
+    } else {
+        i
+    }
+    // fast_float_to_integer::f64_to_i32(v)
 }
 
 #[inline(always)]

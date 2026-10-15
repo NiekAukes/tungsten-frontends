@@ -40,6 +40,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         // dimensions = (x, total height / cell height, z)
         let workset = self.builder_state.as_ref().unwrap().working_set;
         let y_dim = self.noise_generator_settings.noise.height / cell_height;
+        let min_y = self.noise_generator_settings.noise.min_y / cell_height;
         assert!(self.noise_generator_settings.noise.height % cell_height == 0);
         let new_dimensions = (workset.dimensions.0, y_dim, workset.dimensions.2);
         let new_scaled_position = (
@@ -80,7 +81,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                         Some(
                             preliminary_surface_index(
                                 self.p.clone(),
-                                j,
+                                j - min_y,
                                 cell_height,
                                 workset.dimensions.0,
                                 y_dim,

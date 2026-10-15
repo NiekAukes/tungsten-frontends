@@ -649,6 +649,10 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
     }
 
     pub fn lower_density(&mut self, density: Density<'a>) -> Expression<'m> {
+        if !self.check_2d_context(density) {
+            panic!("Cache2d is not supported in this context");
+        }
+
         if let Some(cached) = self.get_function_cached_density_input(&density) {
             return Expression::DensityVariable(cached, None);
         }
@@ -721,20 +725,10 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     right: Box::new(right),
                 }
             }
-            // DensityType::Cache2d { argument } => {
-            //     // do nothing for now, just lower the argument
-            //     // eventually we might want to mark this as a special function call, so that we can do some caching later on
-            //     self.lower_density(argument)
-            // }
             DensityType::Cache2d { argument } => {
-                if self
-                    .builder_state
-                    .as_ref()
-                    .unwrap()
-                    .known_y_sample_point
-                    .is_none()
-                {
-                    panic!("Cache2d is not supported in this context");
+                // If the argument is a flat cache, we want to ignore the cache2d and just lower the flat cache directly
+                if matches!(*argument, DensityType::FlatCache { .. }) {
+                    return self.lower_density(argument);
                 }
 
                 // Check if the current context is already 2d, if so, just use the existing 2d coordinates
@@ -1852,6 +1846,27 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     true
                 }
             });
+    }
+
+    /// Checks whether the next evaluation of the given density is valid.
+    /// Validity depends on the current cache_2d context, the known y sample point,
+    /// and the specific density being evaluated.
+    pub fn check_2d_context(&self, density: Density<'a>) -> bool {
+        // If we are not in a cache_2d context or we have a known y sample point, the evaluation is alwaysvalid.
+        let bs = self.builder_state.as_ref().unwrap();
+        if !bs.in_cache_2d_context || bs.known_y_sample_point.is_some() {
+            return true;
+        }
+        match density {
+            // cache-related densities are always valid, they do not depend on the y sample point
+            DensityType::Cache2d { .. } | DensityType::FlatCache { .. } => true,
+
+            // noise is special, if y-scaling is 0, it is valid, otherwise not
+            DensityType::Noise { y_scale, .. } => *y_scale == 0.0,
+
+            // any others are false
+            _ => false,
+        }
     }
 }
 

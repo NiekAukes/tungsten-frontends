@@ -238,7 +238,14 @@ impl XoroshiroRandomSplitter {
 
     pub fn split_space(&self, x: i32, y: i32, z: i32) -> Xoroshiro128PlusPlusRandom {
         let mut l: i64 = (x * 3129871 ^ z * 116129781 ^ y) as i64;
-        l = l * l * 42317861 + l * 11;
+        // Equivalent to l = l * l * 42317861 + l * 11
+        l = l
+            .overflowing_mul(l)
+            .0
+            .overflowing_mul(42317861)
+            .0
+            .overflowing_add(l.overflowing_mul(11).0)
+            .0;
         l >>= 16;
         let mut m = l ^ self.seed.seed_lo;
         let new_seed = self.seed.split_with(m, self.seed.seed_hi);

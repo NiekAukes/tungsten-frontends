@@ -100,7 +100,11 @@ pub struct BuilderState<'a, 'm> {
 
     add_interpolation_dimension: bool,
 
-    known_y_sample_point: Option<i32>, // for cache2d, the y value at which the density is sampled. Flatcache can set this to 0.
+    // for cache2d, the y value at which the density is sampled. Flatcache can set this to 0.
+    known_y_sample_point: Option<i32>,
+    // indicates whether the current context is within a cache_2d operation.
+    // sometimes necessary because Flatcache and Cache2d are flipped in order.
+    in_cache_2d_context: bool,
 
     pub noise_settings: NoiseSettings,
     density_counter: usize,
@@ -162,6 +166,7 @@ impl<'a, 'm> Transformer<'a, 'm> {
                 sampling_set: ScalingSet::default(),
                 add_interpolation_dimension: false,
                 known_y_sample_point: None,
+                in_cache_2d_context: false,
                 noise_settings: NoiseSettings {
                     min_y: 0,
                     height: 256,

@@ -494,7 +494,7 @@ impl<'m> MinecraftData<'m> {
             },
             preliminary_surface_level: DensitySource::MultiSamplingDensity {
                 density: preliminary_surface_level,
-                dimensions: (4, 1, 4),
+                dimensions: (32 * 4, 1, 32 * 4),
                 coordinate_type: CoordinateType::PreliminarySurface,
             },
             // initial_density_without_jaggedness: DensitySource::SingleSamplingDensity { density: initial_density_without_jaggedness },
@@ -582,11 +582,13 @@ impl<'m> NoiseRouter<'m> {
         //     self.vein_toggle,
         // ]
         vec![
-            // self.final_density_with_beard,
+            self.final_density_with_beard,
+            self.final_density,
             // self.vein_gap,
             // self.vein_ridged,
             // self.vein_toggle,
-            self.aquifer_sampler,
+            self.preliminary_surface_level,
+            // self.aquifer_sampler,
         ]
     }
 }

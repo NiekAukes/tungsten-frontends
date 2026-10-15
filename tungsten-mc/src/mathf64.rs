@@ -662,7 +662,14 @@ pub fn preliminary_surface_index(
         y: i / cell_height,
         z: pos.z,
     };
-    as_index(new_pos, sx, sy, sz)
+    let ni = as_index(new_pos, sx, sy, sz);
+    if ni >= 10000000 {
+        println!("pos: {:?}", new_pos);
+        println!("index: {}", i);
+        println!("sx: {}, sy: {}, sz: {}", sx, sy, sz);
+        panic!("preliminary_surface_index out of bounds: {}", i);
+    }
+    ni
 }
 
 /*

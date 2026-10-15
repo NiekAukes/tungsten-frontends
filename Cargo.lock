@@ -651,7 +651,6 @@ name = "tungsten-mc"
 version = "0.211.0"
 dependencies = [
  "bytemuck",
- "fast-float-to-integer",
  "md5 0.7.0",
  "pollster 0.4.0",
  "rayon",

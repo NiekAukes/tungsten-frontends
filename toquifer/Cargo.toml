@@ -19,3 +19,9 @@ bytemuck = { version = "1", features = ["derive"] }
 pollster = "0.4"
 fast-float-to-integer = "0.1.0"
 crossterm = "0.28"
+
+[profile.dev]
+overflow-checks = false
+
+[profile.release]
+overflow-checks = false

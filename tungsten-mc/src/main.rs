@@ -23,6 +23,7 @@ pub mod math;
 pub mod mathf64;
 //mod orchestration;
 pub mod perlin;
+pub mod preliminary_surface_cache;
 pub mod random;
 mod test_server;
 pub mod utils;
@@ -165,6 +166,9 @@ fn run_benchmark(output: &str) {
 
     let mut records: Vec<Record> = Vec::with_capacity(64 * 64);
 
+    let mut preliminary_surface_cache =
+        preliminary_surface_cache::PreliminarySurfaceCache::new(orchestrator.clone());
+
     for cx in field.0..field.1 {
         for cz in field.0..field.1 {
             let origin = Vec3 {
@@ -181,6 +185,7 @@ fn run_benchmark(output: &str) {
             let host_consts = HostConsts::default();
 
             let t0 = Instant::now();
+            // let _preliminary_surface = preliminary_surface_cache.fill_cache_for_chunk(cx, cz);
             let _result =
                 orchestrator.orchestrate_final_density_with_beardify(origin, &host_consts);
             let duration_ms = t0.elapsed().as_secs_f64() * 1000.0;
