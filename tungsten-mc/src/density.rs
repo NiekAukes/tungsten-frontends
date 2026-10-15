@@ -9,19 +9,6 @@ pub mod density_function {
     use super::*;
     use super::orchestration::*;
     
-<<<<<<< Updated upstream
-    #[inline]
-    fn preliminary_surface_level_d128x1x128(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
-        let mut rpos3: Vec3;
-        let mut origin: Vec3 = config.origin;
-        let mut pos3: Pos3 = p.pos;
-        let mut origin_scale: Vec3 = config.origin_scale;
-        let mut position_scale: Vec3 = config.position_scale;
-        rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return 0_f64;
-    }
-    
-=======
     const spline_coordinates_85: [f32; 2] = [-0.2_f32, 0.2_f32];
     const spline_coordinates_86: [f32; 2] = [-0.05_f32, 0.05_f32];
     const spline_coordinates_87: [f32; 2] = [-0.05_f32, 0.05_f32];
@@ -230,7 +217,6 @@ pub mod density_function {
     const spline_derivatives_54: [f32; 11] = [0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32, 0_f32];
     const spline_coordinates_55: [f32; 5] = [-0.19_f32, -0.15_f32, -0.1_f32, 0.03_f32, 0.06_f32];
     const spline_derivatives_55: [f32; 5] = [0_f32, 0_f32, 0_f32, 0_f32, 0_f32];
->>>>>>> Stashed changes
     #[inline]
     fn Beardifier_d16x384x16(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
@@ -261,186 +247,6 @@ pub mod density_function {
                 current_box = current_piece.block_box;
                 if (!valid_box(current_box)) {
                     break;
-<<<<<<< Updated upstream
-                }
-                m = (max(0_f64, max((current_box.min_x - rpos3.x), (rpos3.x - current_box.max_x))) as i32);
-                n = (max(0_f64, max((current_box.min_z - rpos3.z), (rpos3.z - current_box.max_z))) as i32);
-                o = ((current_box.min_y + (current_piece.ground_level_delta as f64)) as i32);
-                p_1 = ((rpos3.y - (o as f64)) as i32);
-                s = current_piece.terrain_adjustment;
-                q = 0_i32;
-                if ((s == 1_i32) || (s == 2_i32)) {
-                    q = p_1;
-                }
-                if (s == 3_i32) {
-                    q = (max(0_f64, max(((o as f64) - rpos3.y), (rpos3.y - current_box.max_y))) as i32);
-                }
-                if (s == 4_i32) {
-                    q = (max(0_f64, max((current_box.min_y - rpos3.y), (rpos3.y - current_box.max_y))) as i32);
-                }
-                if (s == 1_i32) {
-                    ret = (ret + get_magnitude_weight((m as f64), ((q as f64) / 2_f64), (n as f64)));
-                }
-                if ((s == 2_i32) || (s == 3_i32)) {
-                    ret = (ret + (get_structure_weight(m, q, n, p_1) * 0.8_f64));
-                }
-                if (s == 4_i32) {
-                    ret = (ret + (get_magnitude_weight(((m as f64) / 2_f64), ((q as f64) / 2_f64), ((n as f64) / 2_f64)) * 0.8_f64));
-                }
-                i = (i + 1_i32);
-            }
-            i = 0_i32;
-            while (i < 500_i32) {
-                current_jigsaw = host_consts.jigsaw_array[i as usize];
-                if (((current_jigsaw.source_x == -1073741824_i32) && (current_jigsaw.source_ground_y == -1073741824_i32)) && (current_jigsaw.source_z == -1073741824_i32)) {
-                    break;
-                }
-                r = ((rpos3.x as i32) - current_jigsaw.source_x);
-                l = ((rpos3.y as i32) - current_jigsaw.source_ground_y);
-                m_1 = ((rpos3.z as i32) - current_jigsaw.source_z);
-                ret = (ret + (get_structure_weight(r, l, m_1, l) * 0.4_f64));
-                i = (i + 1_i32);
-            }
-        }
-        return ret;
-    }
-    
-    #[inline]
-    fn minecraft_offset_3_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
-        let mut rpos3: Vec3;
-        let mut n: f64;
-        let mut origin: Vec3 = config.origin;
-        let mut pos3: Pos3 = p.pos;
-        let mut origin_scale: Vec3 = config.origin_scale;
-        let mut position_scale: Vec3 = config.position_scale;
-        rpos3 = ((origin * Vec3::new(0.25_f64, 0_f64, 0.25_f64)) + (pos3 * Vec3::new(1_f64, 0_f64, 1_f64)));
-        n = 0_f64;
-        n = (n + (perlin((rpos3 * 0.125_f64), (&auto_constants.minecraft_offset_0_octave__3)) * 0.5333333333333333_f64));
-        n = (n + (perlin((rpos3 * 0.12726586102719034_f64), (&auto_constants.minecraft_offset_1_octave__3)) * 0.5333333333333333_f64));
-        n = (n + (perlin((rpos3 * 0.25_f64), (&auto_constants.minecraft_offset_0_octave__2)) * 0.26666666666666666_f64));
-        n = (n + (perlin((rpos3 * 0.2545317220543807_f64), (&auto_constants.minecraft_offset_1_octave__2)) * 0.26666666666666666_f64));
-        n = (n + (perlin((rpos3 * 0.5_f64), (&auto_constants.minecraft_offset_0_octave__1)) * 0.13333333333333333_f64));
-        n = (n + (perlin((rpos3 * 0.5090634441087614_f64), (&auto_constants.minecraft_offset_1_octave__1)) * 0.13333333333333333_f64));
-        return (n * 1.25_f64);
-    }
-    
-    #[inline]
-    fn density_function_Cache2d_2_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
-        let mut rpos3: Vec3;
-        let mut origin: Vec3 = config.origin;
-        let mut pos3: Pos3 = p.pos;
-        let mut origin_scale: Vec3 = config.origin_scale;
-        let mut position_scale: Vec3 = config.position_scale;
-        rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return (buffers.minecraft_offset_3_d4x1x4_output[flat_y_zero_index(pos3, 4_i32, 1_i32) as usize] * 4_f64);
-    }
-    
-    #[inline]
-    fn density_function_Cache2d_1_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
-        let mut rpos3: Vec3;
-        let mut origin: Vec3 = config.origin;
-        let mut pos3: Pos3 = p.pos;
-        let mut origin_scale: Vec3 = config.origin_scale;
-        let mut position_scale: Vec3 = config.position_scale;
-        rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return buffers.density_function_Cache2d_2_d4x1x4_output[index(p) as usize];
-    }
-    
-    #[inline]
-    fn density_function_FlatCache_0_d16x384x16(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
-        let mut rpos3: Vec3;
-        let mut origin: Vec3 = config.origin;
-        let mut pos3: Pos3 = p.pos;
-        let mut origin_scale: Vec3 = config.origin_scale;
-        let mut position_scale: Vec3 = config.position_scale;
-        rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return buffers.density_function_Cache2d_1_d4x1x4_output[biome_column_index(pos3, 4_i32, 4_i32) as usize];
-    }
-    
-    #[inline]
-    fn final_density_with_beardify_d16x384x16(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
-        let mut rpos3: Vec3;
-        let mut origin: Vec3 = config.origin;
-        let mut pos3: Pos3 = p.pos;
-        let mut origin_scale: Vec3 = config.origin_scale;
-        let mut position_scale: Vec3 = config.position_scale;
-        rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return (buffers.density_function_FlatCache_0_d16x384x16_output[flat_y_zero_index(pos3, 16_i32, 16_i32) as usize] + buffers.Beardifier_d16x384x16_output[index(p) as usize]);
-    }
-    
-    #[inline]
-    fn final_density_d16x384x16(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
-        let mut rpos3: Vec3;
-        let mut origin: Vec3 = config.origin;
-        let mut pos3: Pos3 = p.pos;
-        let mut origin_scale: Vec3 = config.origin_scale;
-        let mut position_scale: Vec3 = config.position_scale;
-        rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return buffers.density_function_FlatCache_0_d16x384x16_output[flat_y_zero_index(pos3, 16_i32, 16_i32) as usize];
-    }
-    
-    pub fn preliminary_surface_level_d128x1x128_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(4_f64, 8_f64, 4_f64), dimensions: (128_i32, 1_i32, 128_i32) };
-        for p in iter_3d((&config)) {
-            let r: f64 = preliminary_surface_level_d128x1x128(p, (&config), buffers, auto_constants, host_consts);
-            buffers.preliminary_surface_level_d128x1x128_output[index(p) as usize] = r;
-        }
-    }
-    
-    pub fn Beardifier_d16x384x16_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(1_f64, 1_f64, 1_f64), dimensions: (16_i32, 384_i32, 16_i32) };
-        for p in iter_3d((&config)) {
-            let r: f64 = Beardifier_d16x384x16(p, (&config), buffers, auto_constants, host_consts);
-            buffers.Beardifier_d16x384x16_output[index(p) as usize] = r;
-        }
-    }
-    
-    pub fn minecraft_offset_3_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(0.25_f64, 0_f64, 0.25_f64), position_scale: Vec3::new(1_f64, 0_f64, 1_f64), dimensions: (4_i32, 1_i32, 4_i32) };
-        for p in iter_3d((&config)) {
-            let r: f64 = minecraft_offset_3_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.minecraft_offset_3_d4x1x4_output[index(p) as usize] = r;
-        }
-    }
-    
-    pub fn density_function_Cache2d_2_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (4_i32, 1_i32, 4_i32) };
-        for p in iter_3d((&config)) {
-            let r: f64 = density_function_Cache2d_2_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.density_function_Cache2d_2_d4x1x4_output[index(p) as usize] = r;
-        }
-    }
-    
-    pub fn density_function_Cache2d_1_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (4_i32, 1_i32, 4_i32) };
-        for p in iter_3d((&config)) {
-            let r: f64 = density_function_Cache2d_1_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.density_function_Cache2d_1_d4x1x4_output[index(p) as usize] = r;
-        }
-    }
-    
-    pub fn density_function_FlatCache_0_d16x384x16_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(1_f64, 1_f64, 1_f64), dimensions: (16_i32, 384_i32, 16_i32) };
-        for p in iter_3d((&config)) {
-            let r: f64 = density_function_FlatCache_0_d16x384x16(p, (&config), buffers, auto_constants, host_consts);
-            buffers.density_function_FlatCache_0_d16x384x16_output[index(p) as usize] = r;
-        }
-    }
-    
-    pub fn final_density_with_beardify_d16x384x16_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(1_f64, 1_f64, 1_f64), dimensions: (16_i32, 384_i32, 16_i32) };
-        for p in iter_3d((&config)) {
-            let r: f64 = final_density_with_beardify_d16x384x16(p, (&config), buffers, auto_constants, host_consts);
-            buffers.final_density_with_beardify_d16x384x16_output[index(p) as usize] = r;
-        }
-    }
-    
-    pub fn final_density_d16x384x16_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(1_f64, 1_f64, 1_f64), dimensions: (16_i32, 384_i32, 16_i32) };
-        for p in iter_3d((&config)) {
-            let r: f64 = final_density_d16x384x16(p, (&config), buffers, auto_constants, host_consts);
-            buffers.final_density_d16x384x16_output[index(p) as usize] = r;
-=======
                 }
                 m = (max(0_f64, max((current_box.min_x - rpos3.x), (rpos3.x - current_box.max_x))) as i32);
                 n = (max(0_f64, max((current_box.min_z - rpos3.z), (rpos3.z - current_box.max_z))) as i32);
@@ -673,7 +479,52 @@ pub mod density_function {
     }
     
     #[inline]
-    fn density_function_Const_52_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+    fn minecraft_ore_vein_a_57_d5x49x5(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+        let mut rpos3: Vec3;
+        let mut n: f64;
+        let mut origin: Vec3 = config.origin;
+        let mut pos3: Pos3 = p.pos;
+        let mut origin_scale: Vec3 = config.origin_scale;
+        let mut position_scale: Vec3 = config.position_scale;
+        rpos3 = ((origin * Vec3::new(4_f64, 4_f64, 4_f64)) + (pos3 * Vec3::new(16_f64, 32_f64, 16_f64)));
+        n = 0_f64;
+        n = (n + (perlin((rpos3 * 0.0078125_f64), (&auto_constants.minecraft_ore_vein_a_0_octave__7)) * 1_f64));
+        n = (n + (perlin((rpos3 * 0.007954116314199396_f64), (&auto_constants.minecraft_ore_vein_a_1_octave__7)) * 1_f64));
+        return (n * 0.8333333333333333_f64);
+    }
+    
+    #[inline]
+    fn minecraft_ore_vein_b_59_d5x49x5(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+        let mut rpos3: Vec3;
+        let mut n: f64;
+        let mut origin: Vec3 = config.origin;
+        let mut pos3: Pos3 = p.pos;
+        let mut origin_scale: Vec3 = config.origin_scale;
+        let mut position_scale: Vec3 = config.position_scale;
+        rpos3 = ((origin * Vec3::new(4_f64, 4_f64, 4_f64)) + (pos3 * Vec3::new(16_f64, 32_f64, 16_f64)));
+        n = 0_f64;
+        n = (n + (perlin((rpos3 * 0.0078125_f64), (&auto_constants.minecraft_ore_vein_b_0_octave__7)) * 1_f64));
+        n = (n + (perlin((rpos3 * 0.007954116314199396_f64), (&auto_constants.minecraft_ore_vein_b_1_octave__7)) * 1_f64));
+        return (n * 0.8333333333333333_f64);
+    }
+    
+    #[inline]
+    fn minecraft_ore_veininess_61_d5x49x5(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+        let mut rpos3: Vec3;
+        let mut n: f64;
+        let mut origin: Vec3 = config.origin;
+        let mut pos3: Pos3 = p.pos;
+        let mut origin_scale: Vec3 = config.origin_scale;
+        let mut position_scale: Vec3 = config.position_scale;
+        rpos3 = ((origin * Vec3::new(1.5_f64, 1.5_f64, 1.5_f64)) + (pos3 * Vec3::new(6_f64, 12_f64, 6_f64)));
+        n = 0_f64;
+        n = (n + (perlin((rpos3 * 0.00390625_f64), (&auto_constants.minecraft_ore_veininess_0_octave__8)) * 1_f64));
+        n = (n + (perlin((rpos3 * 0.003977058157099698_f64), (&auto_constants.minecraft_ore_veininess_1_octave__8)) * 1_f64));
+        return (n * 0.8333333333333333_f64);
+    }
+    
+    #[inline]
+    fn density_function_Const_63_d128x1x128(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
         let mut origin: Vec3 = config.origin;
         let mut pos3: Pos3 = p.pos;
@@ -836,18 +687,18 @@ pub mod density_function {
     }
     
     #[inline]
-    fn density_function_Cache2d_56_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+    fn density_function_Cache2d_67_d128x1x128(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
         let mut origin: Vec3 = config.origin;
         let mut pos3: Pos3 = p.pos;
         let mut origin_scale: Vec3 = config.origin_scale;
         let mut position_scale: Vec3 = config.position_scale;
         rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return (minecraft_offset_shiftb_57(p, config, buffers, auto_constants, host_consts, Vec3::new((rpos3.z / 4_f64), (rpos3.x / 4_f64), 0_f64)) * 4_f64);
+        return (minecraft_offset_shiftb_68(p, config, buffers, auto_constants, host_consts, Vec3::new((rpos3.z / 4_f64), (rpos3.x / 4_f64), 0_f64)) * 4_f64);
     }
     
     #[inline]
-    fn minecraft_offset_shiftb_57(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts, rpos3: Vec3) -> f64 {
+    fn minecraft_offset_shiftb_68(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts, rpos3: Vec3) -> f64 {
         let mut n: f64;
         n = 0_f64;
         n = (n + (perlin((rpos3 * 0.125_f64), (&auto_constants.minecraft_offset_0_octave__3)) * 0.5333333333333333_f64));
@@ -884,7 +735,7 @@ pub mod density_function {
     }
     
     #[inline]
-    fn minecraft_offset_6_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+    fn minecraft_offset_6_d128x1x128(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
         let mut n: f64;
         let mut origin: Vec3 = config.origin;
@@ -1006,6 +857,69 @@ pub mod density_function {
     }
     
     #[inline]
+    fn density_function_RangeChoice_56_d5x49x5(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+        let mut rpos3: Vec3;
+        let mut var: f64;
+        let mut var_1: f64;
+        let mut var_2: f64;
+        let mut origin: Vec3 = config.origin;
+        let mut pos3: Pos3 = p.pos;
+        let mut origin_scale: Vec3 = config.origin_scale;
+        let mut position_scale: Vec3 = config.position_scale;
+        rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
+        var = clamp(((rpos3.y - -4064_f64) / 8126_f64), 0_f64, 1_f64);
+        var_1 = ((var * 8126_f64) + -4064_f64);
+        if ((var_1 >= -60_f64) && (var_1 < 51_f64)) {
+            var_2 = buffers.minecraft_ore_vein_a_57_d5x49x5_output[index(p) as usize];
+        } else {
+            var_2 = 0_f64;
+        }
+        return var_2;
+    }
+    
+    #[inline]
+    fn density_function_RangeChoice_58_d5x49x5(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+        let mut rpos3: Vec3;
+        let mut var: f64;
+        let mut var_1: f64;
+        let mut var_2: f64;
+        let mut origin: Vec3 = config.origin;
+        let mut pos3: Pos3 = p.pos;
+        let mut origin_scale: Vec3 = config.origin_scale;
+        let mut position_scale: Vec3 = config.position_scale;
+        rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
+        var = clamp(((rpos3.y - -4064_f64) / 8126_f64), 0_f64, 1_f64);
+        var_1 = ((var * 8126_f64) + -4064_f64);
+        if ((var_1 >= -60_f64) && (var_1 < 51_f64)) {
+            var_2 = buffers.minecraft_ore_vein_b_59_d5x49x5_output[index(p) as usize];
+        } else {
+            var_2 = 0_f64;
+        }
+        return var_2;
+    }
+    
+    #[inline]
+    fn density_function_RangeChoice_60_d5x49x5(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+        let mut rpos3: Vec3;
+        let mut var: f64;
+        let mut var_1: f64;
+        let mut var_2: f64;
+        let mut origin: Vec3 = config.origin;
+        let mut pos3: Pos3 = p.pos;
+        let mut origin_scale: Vec3 = config.origin_scale;
+        let mut position_scale: Vec3 = config.position_scale;
+        rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
+        var = clamp(((rpos3.y - -4064_f64) / 8126_f64), 0_f64, 1_f64);
+        var_1 = ((var * 8126_f64) + -4064_f64);
+        if ((var_1 >= -60_f64) && (var_1 < 51_f64)) {
+            var_2 = buffers.minecraft_ore_veininess_61_d5x49x5_output[index(p) as usize];
+        } else {
+            var_2 = 0_f64;
+        }
+        return var_2;
+    }
+    
+    #[inline]
     fn density_function_Add_35_d5x49x5(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
         let mut origin: Vec3 = config.origin;
@@ -1052,14 +966,14 @@ pub mod density_function {
     }
     
     #[inline]
-    fn density_function_Cache2d_55_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+    fn density_function_Cache2d_66_d128x1x128(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
         let mut origin: Vec3 = config.origin;
         let mut pos3: Pos3 = p.pos;
         let mut origin_scale: Vec3 = config.origin_scale;
         let mut position_scale: Vec3 = config.position_scale;
         rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return (buffers.minecraft_offset_6_d4x1x4_output[flat_y_zero_index(pos3, 4_i32, 1_i32) as usize] * 4_f64);
+        return (buffers.minecraft_offset_6_d128x1x128_output[flat_y_zero_index(pos3, 128_i32, 1_i32) as usize] * 4_f64);
     }
     
     #[inline]
@@ -1071,6 +985,28 @@ pub mod density_function {
         let mut position_scale: Vec3 = config.position_scale;
         rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
         return (buffers.minecraft_offset_6_d5x1x5_output[flat_y_zero_index(pos3, 5_i32, 1_i32) as usize] * 4_f64);
+    }
+    
+    #[inline]
+    fn vein_ridged_d16x384x16(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+        let mut rpos3: Vec3;
+        let mut origin: Vec3 = config.origin;
+        let mut pos3: Pos3 = p.pos;
+        let mut origin_scale: Vec3 = config.origin_scale;
+        let mut position_scale: Vec3 = config.position_scale;
+        rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
+        return (-0.07999999821186066_f64 + max(abs(interpolate(buffers.density_function_RangeChoice_56_d5x49x5_output[cornerx0y0z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_56_d5x49x5_output[cornerx4y0z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_56_d5x49x5_output[cornerx0y8z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_56_d5x49x5_output[cornerx4y8z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_56_d5x49x5_output[cornerx0y0z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_56_d5x49x5_output[cornerx4y0z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_56_d5x49x5_output[cornerx0y8z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_56_d5x49x5_output[cornerx4y8z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], xfract4(pos3), yfract8(pos3), zfract4(pos3))), abs(interpolate(buffers.density_function_RangeChoice_58_d5x49x5_output[cornerx0y0z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_58_d5x49x5_output[cornerx4y0z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_58_d5x49x5_output[cornerx0y8z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_58_d5x49x5_output[cornerx4y8z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_58_d5x49x5_output[cornerx0y0z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_58_d5x49x5_output[cornerx4y0z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_58_d5x49x5_output[cornerx0y8z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_58_d5x49x5_output[cornerx4y8z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], xfract4(pos3), yfract8(pos3), zfract4(pos3)))));
+    }
+    
+    #[inline]
+    fn vein_toggle_d16x384x16(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+        let mut rpos3: Vec3;
+        let mut origin: Vec3 = config.origin;
+        let mut pos3: Pos3 = p.pos;
+        let mut origin_scale: Vec3 = config.origin_scale;
+        let mut position_scale: Vec3 = config.position_scale;
+        rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
+        return interpolate(buffers.density_function_RangeChoice_60_d5x49x5_output[cornerx0y0z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_60_d5x49x5_output[cornerx4y0z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_60_d5x49x5_output[cornerx0y8z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_60_d5x49x5_output[cornerx4y8z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_60_d5x49x5_output[cornerx0y0z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_60_d5x49x5_output[cornerx4y0z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_60_d5x49x5_output[cornerx0y8z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_60_d5x49x5_output[cornerx4y8z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], xfract4(pos3), yfract8(pos3), zfract4(pos3));
     }
     
     #[inline]
@@ -1109,18 +1045,18 @@ pub mod density_function {
     }
     
     #[inline]
-    fn density_function_ShiftedNoise_54_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+    fn density_function_ShiftedNoise_65_d128x1x128(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
         let mut origin: Vec3 = config.origin;
         let mut pos3: Pos3 = p.pos;
         let mut origin_scale: Vec3 = config.origin_scale;
         let mut position_scale: Vec3 = config.position_scale;
         rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return minecraft_ridge_shifted_58(p, config, buffers, auto_constants, host_consts, ((rpos3 * Vec3::new(0.25_f64, 0_f64, 0.25_f64)) + Vec3::new(buffers.density_function_Cache2d_55_d4x1x4_output[index(p) as usize], 0_f64, buffers.density_function_Cache2d_56_d4x1x4_output[index(p) as usize])));
+        return minecraft_ridge_shifted_69(p, config, buffers, auto_constants, host_consts, ((rpos3 * Vec3::new(0.25_f64, 0_f64, 0.25_f64)) + Vec3::new(buffers.density_function_Cache2d_66_d128x1x128_output[index(p) as usize], 0_f64, buffers.density_function_Cache2d_67_d128x1x128_output[index(p) as usize])));
     }
     
     #[inline]
-    fn minecraft_ridge_shifted_58(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts, rpos3: Vec3) -> f64 {
+    fn minecraft_ridge_shifted_69(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts, rpos3: Vec3) -> f64 {
         let mut n: f64;
         n = 0_f64;
         n = (n + (perlin((rpos3 * 0.0078125_f64), (&auto_constants.minecraft_ridge_0_octave__7)) * 0.5079365079365079_f64));
@@ -1133,18 +1069,18 @@ pub mod density_function {
     }
     
     #[inline]
-    fn density_function_ShiftedNoise_60_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+    fn density_function_ShiftedNoise_71_d128x1x128(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
         let mut origin: Vec3 = config.origin;
         let mut pos3: Pos3 = p.pos;
         let mut origin_scale: Vec3 = config.origin_scale;
         let mut position_scale: Vec3 = config.position_scale;
         rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return minecraft_erosion_shifted_63(p, config, buffers, auto_constants, host_consts, ((rpos3 * Vec3::new(0.25_f64, 0_f64, 0.25_f64)) + Vec3::new(buffers.density_function_Cache2d_55_d4x1x4_output[index(p) as usize], 0_f64, buffers.density_function_Cache2d_56_d4x1x4_output[index(p) as usize])));
+        return minecraft_erosion_shifted_74(p, config, buffers, auto_constants, host_consts, ((rpos3 * Vec3::new(0.25_f64, 0_f64, 0.25_f64)) + Vec3::new(buffers.density_function_Cache2d_66_d128x1x128_output[index(p) as usize], 0_f64, buffers.density_function_Cache2d_67_d128x1x128_output[index(p) as usize])));
     }
     
     #[inline]
-    fn minecraft_erosion_shifted_63(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts, rpos3: Vec3) -> f64 {
+    fn minecraft_erosion_shifted_74(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts, rpos3: Vec3) -> f64 {
         let mut n: f64;
         n = 0_f64;
         n = (n + (perlin((rpos3 * 0.001953125_f64), (&auto_constants.minecraft_erosion_0_octave__9)) * 0.5161290322580645_f64));
@@ -1159,18 +1095,18 @@ pub mod density_function {
     }
     
     #[inline]
-    fn density_function_ShiftedNoise_65_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+    fn density_function_ShiftedNoise_76_d128x1x128(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
         let mut origin: Vec3 = config.origin;
         let mut pos3: Pos3 = p.pos;
         let mut origin_scale: Vec3 = config.origin_scale;
         let mut position_scale: Vec3 = config.position_scale;
         rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return minecraft_continentalness_shifted_68(p, config, buffers, auto_constants, host_consts, ((rpos3 * Vec3::new(0.25_f64, 0_f64, 0.25_f64)) + Vec3::new(buffers.density_function_Cache2d_55_d4x1x4_output[index(p) as usize], 0_f64, buffers.density_function_Cache2d_56_d4x1x4_output[index(p) as usize])));
+        return minecraft_continentalness_shifted_79(p, config, buffers, auto_constants, host_consts, ((rpos3 * Vec3::new(0.25_f64, 0_f64, 0.25_f64)) + Vec3::new(buffers.density_function_Cache2d_66_d128x1x128_output[index(p) as usize], 0_f64, buffers.density_function_Cache2d_67_d128x1x128_output[index(p) as usize])));
     }
     
     #[inline]
-    fn minecraft_continentalness_shifted_68(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts, rpos3: Vec3) -> f64 {
+    fn minecraft_continentalness_shifted_79(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts, rpos3: Vec3) -> f64 {
         let mut n: f64;
         n = 0_f64;
         n = (n + (perlin((rpos3 * 0.001953125_f64), (&auto_constants.minecraft_continentalness_0_octave__9)) * 0.5009784735812133_f64));
@@ -1281,47 +1217,47 @@ pub mod density_function {
     }
     
     #[inline]
-    fn minecraft_overworld_ridges_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+    fn minecraft_overworld_ridges_d128x1x128(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
         let mut origin: Vec3 = config.origin;
         let mut pos3: Pos3 = p.pos;
         let mut origin_scale: Vec3 = config.origin_scale;
         let mut position_scale: Vec3 = config.position_scale;
         rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return buffers.density_function_ShiftedNoise_54_d4x1x4_output[index(p) as usize];
+        return buffers.density_function_ShiftedNoise_65_d128x1x128_output[index(p) as usize];
     }
     
     #[inline]
-    fn minecraft_overworld_ridges_folded_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+    fn minecraft_overworld_ridges_folded_d128x1x128(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
         let mut origin: Vec3 = config.origin;
         let mut pos3: Pos3 = p.pos;
         let mut origin_scale: Vec3 = config.origin_scale;
         let mut position_scale: Vec3 = config.position_scale;
         rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return (-3_f64 * (-0.3333333333333333_f64 + abs((-0.6666666666666666_f64 + abs(buffers.density_function_ShiftedNoise_54_d4x1x4_output[index(p) as usize])))));
+        return (-3_f64 * (-0.3333333333333333_f64 + abs((-0.6666666666666666_f64 + abs(buffers.density_function_ShiftedNoise_65_d128x1x128_output[index(p) as usize])))));
     }
     
     #[inline]
-    fn minecraft_overworld_erosion_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+    fn minecraft_overworld_erosion_d128x1x128(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
         let mut origin: Vec3 = config.origin;
         let mut pos3: Pos3 = p.pos;
         let mut origin_scale: Vec3 = config.origin_scale;
         let mut position_scale: Vec3 = config.position_scale;
         rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return buffers.density_function_ShiftedNoise_60_d4x1x4_output[index(p) as usize];
+        return buffers.density_function_ShiftedNoise_71_d128x1x128_output[index(p) as usize];
     }
     
     #[inline]
-    fn minecraft_overworld_continents_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+    fn minecraft_overworld_continents_d128x1x128(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
         let mut origin: Vec3 = config.origin;
         let mut pos3: Pos3 = p.pos;
         let mut origin_scale: Vec3 = config.origin_scale;
         let mut position_scale: Vec3 = config.position_scale;
         rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return buffers.density_function_ShiftedNoise_65_d4x1x4_output[index(p) as usize];
+        return buffers.density_function_ShiftedNoise_76_d128x1x128_output[index(p) as usize];
     }
     
     #[inline]
@@ -1369,7 +1305,7 @@ pub mod density_function {
     }
     
     #[inline]
-    fn density_function_Cache2d_69_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+    fn density_function_Cache2d_80_d128x1x128(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
         let mut spline_values: [f32; 2];
         let mut coordinate: f32;
@@ -1436,61 +1372,61 @@ pub mod density_function {
         let mut position_scale: Vec3 = config.position_scale;
         rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
         spline_values = [6.3_f32, 6.25_f32];
-        coordinate = (buffers.minecraft_overworld_ridges_d4x1x4_output[index(p) as usize] as f32);
+        coordinate = (buffers.minecraft_overworld_ridges_d128x1x128_output[index(p) as usize] as f32);
         spline_index = binary_search(spline_coordinates_85, (coordinate as f32));
         spline_values_1 = [6.3_f32, 2.67_f32];
-        coordinate_1 = (buffers.minecraft_overworld_ridges_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_1 = (buffers.minecraft_overworld_ridges_d128x1x128_output[index(p) as usize] as f32);
         spline_index_1 = binary_search(spline_coordinates_86, (coordinate_1 as f32));
         spline_values_2 = [2.67_f32, 6.3_f32];
-        coordinate_2 = (buffers.minecraft_overworld_ridges_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_2 = (buffers.minecraft_overworld_ridges_d128x1x128_output[index(p) as usize] as f32);
         spline_index_2 = binary_search(spline_coordinates_87, (coordinate_2 as f32));
         spline_values_3 = [6.25_f32, 0.625_f32];
-        coordinate_3 = (buffers.minecraft_overworld_ridges_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_3 = (buffers.minecraft_overworld_ridges_d128x1x128_output[index(p) as usize] as f32);
         spline_index_3 = binary_search(spline_coordinates_88, (coordinate_3 as f32));
         spline_values_4 = [6.25_f32, advanced_hermite(spline_coordinates_88, spline_values_3, spline_derivatives_88, (coordinate_3 as f32), (spline_index_3 as i32))];
-        coordinate_4 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_4 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_4 = binary_search(spline_coordinates_89, (coordinate_4 as f32));
         spline_values_5 = [advanced_hermite(spline_coordinates_85, spline_values, spline_derivatives_85, (coordinate as f32), (spline_index as i32)), advanced_hermite(spline_coordinates_86, spline_values_1, spline_derivatives_86, (coordinate_1 as f32), (spline_index_1 as i32)), advanced_hermite(spline_coordinates_85, spline_values, spline_derivatives_85, (coordinate as f32), (spline_index as i32)), advanced_hermite(spline_coordinates_85, spline_values, spline_derivatives_85, (coordinate as f32), (spline_index as i32)), advanced_hermite(spline_coordinates_87, spline_values_2, spline_derivatives_87, (coordinate_2 as f32), (spline_index_2 as i32)), advanced_hermite(spline_coordinates_85, spline_values, spline_derivatives_85, (coordinate as f32), (spline_index as i32)), 6.25_f32, advanced_hermite(spline_coordinates_89, spline_values_4, spline_derivatives_89, (coordinate_4 as f32), (spline_index_4 as i32)), advanced_hermite(spline_coordinates_89, spline_values_4, spline_derivatives_89, (coordinate_4 as f32), (spline_index_4 as i32)), 6.25_f32];
-        coordinate_5 = (buffers.minecraft_overworld_erosion_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_5 = (buffers.minecraft_overworld_erosion_d128x1x128_output[index(p) as usize] as f32);
         spline_index_5 = binary_search(spline_coordinates_90, (coordinate_5 as f32));
         spline_values_6 = [6.3_f32, 5.47_f32];
-        coordinate_6 = (buffers.minecraft_overworld_ridges_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_6 = (buffers.minecraft_overworld_ridges_d128x1x128_output[index(p) as usize] as f32);
         spline_index_6 = binary_search(spline_coordinates_91, (coordinate_6 as f32));
         spline_values_7 = [5.47_f32, 0.625_f32];
-        coordinate_7 = (buffers.minecraft_overworld_ridges_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_7 = (buffers.minecraft_overworld_ridges_d128x1x128_output[index(p) as usize] as f32);
         spline_index_7 = binary_search(spline_coordinates_92, (coordinate_7 as f32));
         spline_values_8 = [5.47_f32, advanced_hermite(spline_coordinates_92, spline_values_7, spline_derivatives_92, (coordinate_7 as f32), (spline_index_7 as i32))];
-        coordinate_8 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_8 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_8 = binary_search(spline_coordinates_93, (coordinate_8 as f32));
         spline_values_9 = [advanced_hermite(spline_coordinates_91, spline_values_6, spline_derivatives_91, (coordinate_6 as f32), (spline_index_6 as i32)), advanced_hermite(spline_coordinates_86, spline_values_1, spline_derivatives_86, (coordinate_1 as f32), (spline_index_1 as i32)), advanced_hermite(spline_coordinates_91, spline_values_6, spline_derivatives_91, (coordinate_6 as f32), (spline_index_6 as i32)), advanced_hermite(spline_coordinates_91, spline_values_6, spline_derivatives_91, (coordinate_6 as f32), (spline_index_6 as i32)), advanced_hermite(spline_coordinates_87, spline_values_2, spline_derivatives_87, (coordinate_2 as f32), (spline_index_2 as i32)), advanced_hermite(spline_coordinates_91, spline_values_6, spline_derivatives_91, (coordinate_6 as f32), (spline_index_6 as i32)), 5.47_f32, advanced_hermite(spline_coordinates_93, spline_values_8, spline_derivatives_93, (coordinate_8 as f32), (spline_index_8 as i32)), advanced_hermite(spline_coordinates_93, spline_values_8, spline_derivatives_93, (coordinate_8 as f32), (spline_index_8 as i32)), 5.47_f32];
-        coordinate_9 = (buffers.minecraft_overworld_erosion_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_9 = (buffers.minecraft_overworld_erosion_d128x1x128_output[index(p) as usize] as f32);
         spline_index_9 = binary_search(spline_coordinates_94, (coordinate_9 as f32));
         spline_values_10 = [6.3_f32, 5.08_f32];
-        coordinate_10 = (buffers.minecraft_overworld_ridges_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_10 = (buffers.minecraft_overworld_ridges_d128x1x128_output[index(p) as usize] as f32);
         spline_index_10 = binary_search(spline_coordinates_95, (coordinate_10 as f32));
         spline_values_11 = [5.08_f32, 0.625_f32];
-        coordinate_11 = (buffers.minecraft_overworld_ridges_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_11 = (buffers.minecraft_overworld_ridges_d128x1x128_output[index(p) as usize] as f32);
         spline_index_11 = binary_search(spline_coordinates_96, (coordinate_11 as f32));
         spline_values_12 = [5.08_f32, advanced_hermite(spline_coordinates_96, spline_values_11, spline_derivatives_96, (coordinate_11 as f32), (spline_index_11 as i32))];
-        coordinate_12 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_12 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_12 = binary_search(spline_coordinates_97, (coordinate_12 as f32));
         spline_values_13 = [advanced_hermite(spline_coordinates_95, spline_values_10, spline_derivatives_95, (coordinate_10 as f32), (spline_index_10 as i32)), advanced_hermite(spline_coordinates_86, spline_values_1, spline_derivatives_86, (coordinate_1 as f32), (spline_index_1 as i32)), advanced_hermite(spline_coordinates_95, spline_values_10, spline_derivatives_95, (coordinate_10 as f32), (spline_index_10 as i32)), advanced_hermite(spline_coordinates_95, spline_values_10, spline_derivatives_95, (coordinate_10 as f32), (spline_index_10 as i32)), advanced_hermite(spline_coordinates_87, spline_values_2, spline_derivatives_87, (coordinate_2 as f32), (spline_index_2 as i32)), advanced_hermite(spline_coordinates_95, spline_values_10, spline_derivatives_95, (coordinate_10 as f32), (spline_index_10 as i32)), 5.08_f32, advanced_hermite(spline_coordinates_97, spline_values_12, spline_derivatives_97, (coordinate_12 as f32), (spline_index_12 as i32)), advanced_hermite(spline_coordinates_97, spline_values_12, spline_derivatives_97, (coordinate_12 as f32), (spline_index_12 as i32)), 5.08_f32];
-        coordinate_13 = (buffers.minecraft_overworld_erosion_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_13 = (buffers.minecraft_overworld_erosion_d128x1x128_output[index(p) as usize] as f32);
         spline_index_13 = binary_search(spline_coordinates_98, (coordinate_13 as f32));
         spline_values_14 = [6.3_f32, 4.69_f32];
-        coordinate_14 = (buffers.minecraft_overworld_ridges_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_14 = (buffers.minecraft_overworld_ridges_d128x1x128_output[index(p) as usize] as f32);
         spline_index_14 = binary_search(spline_coordinates_99, (coordinate_14 as f32));
         spline_values_15 = [advanced_hermite(spline_coordinates_99, spline_values_14, spline_derivatives_99, (coordinate_14 as f32), (spline_index_14 as i32)), 1.56_f32];
-        coordinate_15 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_15 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_15 = binary_search(spline_coordinates_100, (coordinate_15 as f32));
         spline_values_16 = [advanced_hermite(spline_coordinates_99, spline_values_14, spline_derivatives_99, (coordinate_14 as f32), (spline_index_14 as i32)), 1.37_f32];
-        coordinate_16 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_16 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_16 = binary_search(spline_coordinates_101, (coordinate_16 as f32));
         spline_values_17 = [advanced_hermite(spline_coordinates_99, spline_values_14, spline_derivatives_99, (coordinate_14 as f32), (spline_index_14 as i32)), advanced_hermite(spline_coordinates_86, spline_values_1, spline_derivatives_86, (coordinate_1 as f32), (spline_index_1 as i32)), advanced_hermite(spline_coordinates_99, spline_values_14, spline_derivatives_99, (coordinate_14 as f32), (spline_index_14 as i32)), advanced_hermite(spline_coordinates_99, spline_values_14, spline_derivatives_99, (coordinate_14 as f32), (spline_index_14 as i32)), advanced_hermite(spline_coordinates_87, spline_values_2, spline_derivatives_87, (coordinate_2 as f32), (spline_index_2 as i32)), advanced_hermite(spline_coordinates_99, spline_values_14, spline_derivatives_99, (coordinate_14 as f32), (spline_index_14 as i32)), advanced_hermite(spline_coordinates_100, spline_values_15, spline_derivatives_100, (coordinate_15 as f32), (spline_index_15 as i32)), advanced_hermite(spline_coordinates_100, spline_values_15, spline_derivatives_100, (coordinate_15 as f32), (spline_index_15 as i32)), advanced_hermite(spline_coordinates_101, spline_values_16, spline_derivatives_101, (coordinate_16 as f32), (spline_index_16 as i32)), advanced_hermite(spline_coordinates_101, spline_values_16, spline_derivatives_101, (coordinate_16 as f32), (spline_index_16 as i32)), 4.69_f32];
-        coordinate_17 = (buffers.minecraft_overworld_erosion_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_17 = (buffers.minecraft_overworld_erosion_d128x1x128_output[index(p) as usize] as f32);
         spline_index_17 = binary_search(spline_coordinates_102, (coordinate_17 as f32));
         spline_values_18 = [3.95_f32, advanced_hermite(spline_coordinates_90, spline_values_5, spline_derivatives_90, (coordinate_5 as f32), (spline_index_5 as i32)), advanced_hermite(spline_coordinates_94, spline_values_9, spline_derivatives_94, (coordinate_9 as f32), (spline_index_9 as i32)), advanced_hermite(spline_coordinates_98, spline_values_13, spline_derivatives_98, (coordinate_13 as f32), (spline_index_13 as i32)), advanced_hermite(spline_coordinates_102, spline_values_17, spline_derivatives_102, (coordinate_17 as f32), (spline_index_17 as i32))];
-        coordinate_18 = (buffers.minecraft_overworld_continents_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_18 = (buffers.minecraft_overworld_continents_d128x1x128_output[index(p) as usize] as f32);
         spline_index_18 = binary_search(spline_coordinates_103, (coordinate_18 as f32));
         spline_result_f32 = advanced_hermite(spline_coordinates_103, spline_values_18, spline_derivatives_103, (coordinate_18 as f32), (spline_index_18 as i32));
         spline_result_f64 = (spline_result_f32 as f64);
@@ -1498,7 +1434,7 @@ pub mod density_function {
     }
     
     #[inline]
-    fn density_function_Cache2d_51_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+    fn density_function_Cache2d_62_d128x1x128(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
         let mut spline_values: [f32; 2];
         let mut coordinate: f32;
@@ -1595,95 +1531,95 @@ pub mod density_function {
         let mut position_scale: Vec3 = config.position_scale;
         rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
         spline_values = [-0.08880186_f32, 0.69000006_f32];
-        coordinate = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index = binary_search(spline_coordinates_56, (coordinate as f32));
         spline_values_1 = [-0.115760356_f32, 0.6400001_f32];
-        coordinate_1 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_1 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_1 = binary_search(spline_coordinates_57, (coordinate_1 as f32));
         spline_values_2 = [-0.2222_f32, -0.2222_f32, 0_f32, 0.000000029802322_f32, 0.000000029802322_f32, 0.100000024_f32];
-        coordinate_2 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_2 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_2 = binary_search(spline_coordinates_58, (coordinate_2 as f32));
         spline_values_3 = [-0.3_f32, 0.05_f32, 0.05_f32, 0.05_f32, 0.060000002_f32];
-        coordinate_3 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_3 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_3 = binary_search(spline_coordinates_59, (coordinate_3 as f32));
         spline_values_4 = [-0.15_f32, 0_f32, 0_f32, 0.05_f32, 0.060000002_f32];
-        coordinate_4 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_4 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_4 = binary_search(spline_coordinates_60, (coordinate_4 as f32));
         spline_values_5 = [-0.15_f32, 0_f32, 0_f32, 0_f32, 0_f32];
-        coordinate_5 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_5 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_5 = binary_search(spline_coordinates_61, (coordinate_5 as f32));
         spline_values_6 = [-0.02_f32, -0.03_f32, -0.03_f32, 0_f32, 0_f32];
-        coordinate_6 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_6 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_6 = binary_search(spline_coordinates_62, (coordinate_6 as f32));
         spline_values_7 = [advanced_hermite(spline_coordinates_56, spline_values, spline_derivatives_56, (coordinate as f32), (spline_index as i32)), advanced_hermite(spline_coordinates_57, spline_values_1, spline_derivatives_57, (coordinate_1 as f32), (spline_index_1 as i32)), advanced_hermite(spline_coordinates_58, spline_values_2, spline_derivatives_58, (coordinate_2 as f32), (spline_index_2 as i32)), advanced_hermite(spline_coordinates_59, spline_values_3, spline_derivatives_59, (coordinate_3 as f32), (spline_index_3 as i32)), advanced_hermite(spline_coordinates_60, spline_values_4, spline_derivatives_60, (coordinate_4 as f32), (spline_index_4 as i32)), advanced_hermite(spline_coordinates_61, spline_values_5, spline_derivatives_61, (coordinate_5 as f32), (spline_index_5 as i32)), advanced_hermite(spline_coordinates_62, spline_values_6, spline_derivatives_62, (coordinate_6 as f32), (spline_index_6 as i32))];
-        coordinate_7 = (buffers.minecraft_overworld_erosion_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_7 = (buffers.minecraft_overworld_erosion_d128x1x128_output[index(p) as usize] as f32);
         spline_index_7 = binary_search(spline_coordinates_63, (coordinate_7 as f32));
         spline_values_8 = [-0.25_f32, 0.05_f32, 0.05_f32, 0.05_f32, 0.060000002_f32];
-        coordinate_8 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_8 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_8 = binary_search(spline_coordinates_64, (coordinate_8 as f32));
         spline_values_9 = [-0.1_f32, 0.001_f32, 0.003_f32, 0.05_f32, 0.060000002_f32];
-        coordinate_9 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_9 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_9 = binary_search(spline_coordinates_65, (coordinate_9 as f32));
         spline_values_10 = [-0.1_f32, 0.01_f32, 0.01_f32, 0.03_f32, 0.1_f32];
-        coordinate_10 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_10 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_10 = binary_search(spline_coordinates_66, (coordinate_10 as f32));
         spline_values_11 = [-0.02_f32, -0.03_f32, -0.03_f32, 0.03_f32, 0.1_f32];
-        coordinate_11 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_11 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_11 = binary_search(spline_coordinates_67, (coordinate_11 as f32));
         spline_values_12 = [advanced_hermite(spline_coordinates_56, spline_values, spline_derivatives_56, (coordinate as f32), (spline_index as i32)), advanced_hermite(spline_coordinates_57, spline_values_1, spline_derivatives_57, (coordinate_1 as f32), (spline_index_1 as i32)), advanced_hermite(spline_coordinates_58, spline_values_2, spline_derivatives_58, (coordinate_2 as f32), (spline_index_2 as i32)), advanced_hermite(spline_coordinates_64, spline_values_8, spline_derivatives_64, (coordinate_8 as f32), (spline_index_8 as i32)), advanced_hermite(spline_coordinates_65, spline_values_9, spline_derivatives_65, (coordinate_9 as f32), (spline_index_9 as i32)), advanced_hermite(spline_coordinates_66, spline_values_10, spline_derivatives_66, (coordinate_10 as f32), (spline_index_10 as i32)), advanced_hermite(spline_coordinates_67, spline_values_11, spline_derivatives_67, (coordinate_11 as f32), (spline_index_11 as i32))];
-        coordinate_12 = (buffers.minecraft_overworld_erosion_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_12 = (buffers.minecraft_overworld_erosion_d128x1x128_output[index(p) as usize] as f32);
         spline_index_12 = binary_search(spline_coordinates_68, (coordinate_12 as f32));
         spline_values_13 = [0.20235021_f32, 0.7161751_f32, 1.23_f32];
-        coordinate_13 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_13 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_13 = binary_search(spline_coordinates_69, (coordinate_13 as f32));
         spline_values_14 = [0.2_f32, 0.44682026_f32, 0.88_f32];
-        coordinate_14 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_14 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_14 = binary_search(spline_coordinates_70, (coordinate_14 as f32));
         spline_values_15 = [0.2_f32, 0.30829495_f32, 0.70000005_f32];
-        coordinate_15 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_15 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_15 = binary_search(spline_coordinates_71, (coordinate_15 as f32));
         spline_values_16 = [-0.25_f32, 0.35_f32, 0.35_f32, 0.35_f32, 0.42000002_f32];
-        coordinate_16 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_16 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_16 = binary_search(spline_coordinates_72, (coordinate_16 as f32));
         spline_values_17 = [-0.1_f32, 0.0069999998_f32, 0.021_f32, 0.35_f32, 0.42000002_f32];
-        coordinate_17 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_17 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_17 = binary_search(spline_coordinates_73, (coordinate_17 as f32));
         spline_values_18 = [-0.1_f32, advanced_hermite(spline_coordinates_66, spline_values_10, spline_derivatives_66, (coordinate_10 as f32), (spline_index_10 as i32)), 0.17_f32];
-        coordinate_18 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_18 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_18 = binary_search(spline_coordinates_74, (coordinate_18 as f32));
         spline_values_19 = [advanced_hermite(spline_coordinates_69, spline_values_13, spline_derivatives_69, (coordinate_13 as f32), (spline_index_13 as i32)), advanced_hermite(spline_coordinates_70, spline_values_14, spline_derivatives_70, (coordinate_14 as f32), (spline_index_14 as i32)), advanced_hermite(spline_coordinates_71, spline_values_15, spline_derivatives_71, (coordinate_15 as f32), (spline_index_15 as i32)), advanced_hermite(spline_coordinates_72, spline_values_16, spline_derivatives_72, (coordinate_16 as f32), (spline_index_16 as i32)), advanced_hermite(spline_coordinates_73, spline_values_17, spline_derivatives_73, (coordinate_17 as f32), (spline_index_17 as i32)), advanced_hermite(spline_coordinates_66, spline_values_10, spline_derivatives_66, (coordinate_10 as f32), (spline_index_10 as i32)), advanced_hermite(spline_coordinates_66, spline_values_10, spline_derivatives_66, (coordinate_10 as f32), (spline_index_10 as i32)), advanced_hermite(spline_coordinates_74, spline_values_18, spline_derivatives_74, (coordinate_18 as f32), (spline_index_18 as i32)), advanced_hermite(spline_coordinates_74, spline_values_18, spline_derivatives_74, (coordinate_18 as f32), (spline_index_18 as i32)), advanced_hermite(spline_coordinates_66, spline_values_10, spline_derivatives_66, (coordinate_10 as f32), (spline_index_10 as i32)), advanced_hermite(spline_coordinates_67, spline_values_11, spline_derivatives_67, (coordinate_11 as f32), (spline_index_11 as i32))];
-        coordinate_19 = (buffers.minecraft_overworld_erosion_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_19 = (buffers.minecraft_overworld_erosion_d128x1x128_output[index(p) as usize] as f32);
         spline_index_19 = binary_search(spline_coordinates_75, (coordinate_19 as f32));
         spline_values_20 = [0.34792626_f32, 0.9239631_f32, 1.5_f32];
-        coordinate_20 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_20 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_20 = binary_search(spline_coordinates_76, (coordinate_20 as f32));
         spline_values_21 = [0.2_f32, 0.5391705_f32, 1_f32];
-        coordinate_21 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_21 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_21 = binary_search(spline_coordinates_77, (coordinate_21 as f32));
         spline_values_22 = [-0.2_f32, 0.5_f32, 0.5_f32, 0.5_f32, 0.6_f32];
-        coordinate_22 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_22 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_22 = binary_search(spline_coordinates_78, (coordinate_22 as f32));
         spline_values_23 = [-0.05_f32, 0.01_f32, 0.03_f32, 0.5_f32, 0.6_f32];
-        coordinate_23 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_23 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_23 = binary_search(spline_coordinates_79, (coordinate_23 as f32));
         spline_values_24 = [-0.05_f32, 0.01_f32, 0.01_f32, 0.03_f32, 0.1_f32];
-        coordinate_24 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_24 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_24 = binary_search(spline_coordinates_80, (coordinate_24 as f32));
         spline_values_25 = [-0.05_f32, advanced_hermite(spline_coordinates_80, spline_values_24, spline_derivatives_80, (coordinate_24 as f32), (spline_index_24 as i32)), 0.17_f32];
-        coordinate_25 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_25 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_25 = binary_search(spline_coordinates_81, (coordinate_25 as f32));
         spline_values_26 = [-0.02_f32, 0.01_f32, 0.01_f32, 0.03_f32, 0.1_f32];
-        coordinate_26 = (buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_26 = (buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] as f32);
         spline_index_26 = binary_search(spline_coordinates_82, (coordinate_26 as f32));
         spline_values_27 = [advanced_hermite(spline_coordinates_76, spline_values_20, spline_derivatives_76, (coordinate_20 as f32), (spline_index_20 as i32)), advanced_hermite(spline_coordinates_77, spline_values_21, spline_derivatives_77, (coordinate_21 as f32), (spline_index_21 as i32)), advanced_hermite(spline_coordinates_77, spline_values_21, spline_derivatives_77, (coordinate_21 as f32), (spline_index_21 as i32)), advanced_hermite(spline_coordinates_78, spline_values_22, spline_derivatives_78, (coordinate_22 as f32), (spline_index_22 as i32)), advanced_hermite(spline_coordinates_79, spline_values_23, spline_derivatives_79, (coordinate_23 as f32), (spline_index_23 as i32)), advanced_hermite(spline_coordinates_80, spline_values_24, spline_derivatives_80, (coordinate_24 as f32), (spline_index_24 as i32)), advanced_hermite(spline_coordinates_80, spline_values_24, spline_derivatives_80, (coordinate_24 as f32), (spline_index_24 as i32)), advanced_hermite(spline_coordinates_81, spline_values_25, spline_derivatives_81, (coordinate_25 as f32), (spline_index_25 as i32)), advanced_hermite(spline_coordinates_81, spline_values_25, spline_derivatives_81, (coordinate_25 as f32), (spline_index_25 as i32)), advanced_hermite(spline_coordinates_80, spline_values_24, spline_derivatives_80, (coordinate_24 as f32), (spline_index_24 as i32)), advanced_hermite(spline_coordinates_82, spline_values_26, spline_derivatives_82, (coordinate_26 as f32), (spline_index_26 as i32))];
-        coordinate_27 = (buffers.minecraft_overworld_erosion_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_27 = (buffers.minecraft_overworld_erosion_d128x1x128_output[index(p) as usize] as f32);
         spline_index_27 = binary_search(spline_coordinates_83, (coordinate_27 as f32));
         spline_values_28 = [0.044_f32, -0.2222_f32, -0.2222_f32, -0.12_f32, -0.12_f32, advanced_hermite(spline_coordinates_63, spline_values_7, spline_derivatives_63, (coordinate_7 as f32), (spline_index_7 as i32)), advanced_hermite(spline_coordinates_63, spline_values_7, spline_derivatives_63, (coordinate_7 as f32), (spline_index_7 as i32)), advanced_hermite(spline_coordinates_68, spline_values_12, spline_derivatives_68, (coordinate_12 as f32), (spline_index_12 as i32)), advanced_hermite(spline_coordinates_75, spline_values_19, spline_derivatives_75, (coordinate_19 as f32), (spline_index_19 as i32)), advanced_hermite(spline_coordinates_83, spline_values_27, spline_derivatives_83, (coordinate_27 as f32), (spline_index_27 as i32))];
-        coordinate_28 = (buffers.minecraft_overworld_continents_d4x1x4_output[index(p) as usize] as f32);
+        coordinate_28 = (buffers.minecraft_overworld_continents_d128x1x128_output[index(p) as usize] as f32);
         spline_index_28 = binary_search(spline_coordinates_84, (coordinate_28 as f32));
         spline_result_f32 = advanced_hermite(spline_coordinates_84, spline_values_28, spline_derivatives_84, (coordinate_28 as f32), (spline_index_28 as i32));
         spline_result_f64 = (spline_result_f32 as f64);
-        return ((0_f64 * (1_f64 + (-1_f64 * buffers.density_function_Const_52_d4x1x4_output[index(p) as usize]))) + ((-0.5037500262260437_f64 + spline_result_f64) * buffers.density_function_Const_52_d4x1x4_output[index(p) as usize]));
+        return ((0_f64 * (1_f64 + (-1_f64 * buffers.density_function_Const_63_d128x1x128_output[index(p) as usize]))) + ((-0.5037500262260437_f64 + spline_result_f64) * buffers.density_function_Const_63_d128x1x128_output[index(p) as usize]));
     }
     
     #[inline]
@@ -2170,25 +2106,28 @@ pub mod density_function {
     }
     
     #[inline]
-    fn minecraft_overworld_offset_d4x48x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+    fn density_function_82_d128x48x128(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
+        let mut var: f64;
+        let mut var_1: f64;
+        let mut var_2: f64;
+        let mut var_3: f64;
+        let mut var_4: f64;
         let mut origin: Vec3 = config.origin;
         let mut pos3: Pos3 = p.pos;
         let mut origin_scale: Vec3 = config.origin_scale;
         let mut position_scale: Vec3 = config.position_scale;
         rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return buffers.density_function_Cache2d_51_d4x1x4_output[flat_y_zero_index(pos3, 4_i32, 4_i32) as usize];
-    }
-    
-    #[inline]
-    fn minecraft_overworld_factor_d4x48x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
-        let mut rpos3: Vec3;
-        let mut origin: Vec3 = config.origin;
-        let mut pos3: Pos3 = p.pos;
-        let mut origin_scale: Vec3 = config.origin_scale;
-        let mut position_scale: Vec3 = config.position_scale;
-        rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        return buffers.density_function_Cache2d_69_d4x1x4_output[flat_y_zero_index(pos3, 4_i32, 4_i32) as usize];
+        var = clamp(((rpos3.y - -64_f64) / 24_f64), 0_f64, 1_f64);
+        var_1 = clamp(((rpos3.y - 240_f64) / 16_f64), 0_f64, 1_f64);
+        var_2 = clamp(((rpos3.y - -64_f64) / 384_f64), 0_f64, 1_f64);
+        var_3 = ((((var_2 * -3_f64) + 1.5_f64) + buffers.density_function_Cache2d_62_d128x1x128_output[flat_y_zero_index(pos3, 128_i32, 128_i32) as usize]) * buffers.density_function_Cache2d_80_d128x1x128_output[flat_y_zero_index(pos3, 128_i32, 128_i32) as usize]);
+        if (var_3 < 0_f64) {
+            var_4 = (var_3 * 0.25_f64);
+        } else {
+            var_4 = var_3;
+        }
+        return (-0.390625_f64 + (0.1171875_f64 + (((var * 1_f64) + 0_f64) * (-0.1171875_f64 + (-0.078125_f64 + (((var_1 * -1_f64) + 1_f64) * (0.078125_f64 + clamp((-0.703125_f64 + (4_f64 * var_4)), -64_f64, 64_f64))))))));
     }
     
     #[inline]
@@ -2215,32 +2154,30 @@ pub mod density_function {
     }
     
     #[inline]
-    fn density_function_71_d4x48x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+    fn final_density_d16x384x16(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
         let mut var: f64;
         let mut var_1: f64;
         let mut var_2: f64;
         let mut var_3: f64;
-        let mut var_4: f64;
         let mut origin: Vec3 = config.origin;
         let mut pos3: Pos3 = p.pos;
         let mut origin_scale: Vec3 = config.origin_scale;
         let mut position_scale: Vec3 = config.position_scale;
         rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        var = clamp(((rpos3.y - -64_f64) / 24_f64), 0_f64, 1_f64);
-        var_1 = clamp(((rpos3.y - 240_f64) / 16_f64), 0_f64, 1_f64);
-        var_2 = clamp(((rpos3.y - -64_f64) / 384_f64), 0_f64, 1_f64);
-        var_3 = ((((var_2 * -3_f64) + 1.5_f64) + buffers.minecraft_overworld_offset_d4x48x4_output[flat_y_zero_index(pos3, 4_i32, 4_i32) as usize]) * buffers.minecraft_overworld_factor_d4x48x4_output[flat_y_zero_index(pos3, 4_i32, 4_i32) as usize]);
-        if (var_3 < 0_f64) {
-            var_4 = (var_3 * 0.25_f64);
+        var = clamp((0.64_f64 * interpolate(buffers.density_function_Add_0_d5x49x5_output[cornerx0y0z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_Add_0_d5x49x5_output[cornerx4y0z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_Add_0_d5x49x5_output[cornerx0y8z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_Add_0_d5x49x5_output[cornerx4y8z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_Add_0_d5x49x5_output[cornerx0y0z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_Add_0_d5x49x5_output[cornerx4y0z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_Add_0_d5x49x5_output[cornerx0y8z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_Add_0_d5x49x5_output[cornerx4y8z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], xfract4(pos3), yfract8(pos3), zfract4(pos3))), -1_f64, 1_f64);
+        var_1 = ((var * 0.5_f64) - (((var * var) * var) * 0.041666666666666664_f64));
+        var_2 = interpolate(buffers.density_function_RangeChoice_43_d5x49x5_output[cornerx0y0z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_43_d5x49x5_output[cornerx4y0z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_43_d5x49x5_output[cornerx0y8z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_43_d5x49x5_output[cornerx4y8z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_43_d5x49x5_output[cornerx0y0z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_43_d5x49x5_output[cornerx4y0z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_43_d5x49x5_output[cornerx0y8z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_43_d5x49x5_output[cornerx4y8z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], xfract4(pos3), yfract8(pos3), zfract4(pos3));
+        if ((var_2 >= -1000000_f64) && (var_2 < 0_f64)) {
+            var_3 = 64_f64;
         } else {
-            var_4 = var_3;
+            var_3 = (interpolate(buffers.density_function_RangeChoice_45_d5x49x5_output[cornerx0y0z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_45_d5x49x5_output[cornerx4y0z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_45_d5x49x5_output[cornerx0y8z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_45_d5x49x5_output[cornerx4y8z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_45_d5x49x5_output[cornerx0y0z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_45_d5x49x5_output[cornerx4y0z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_45_d5x49x5_output[cornerx0y8z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_45_d5x49x5_output[cornerx4y8z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], xfract4(pos3), yfract8(pos3), zfract4(pos3)) + (1.5_f64 * max(abs(interpolate(buffers.density_function_RangeChoice_47_d5x49x5_output[cornerx0y0z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_47_d5x49x5_output[cornerx4y0z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_47_d5x49x5_output[cornerx0y8z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_47_d5x49x5_output[cornerx4y8z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_47_d5x49x5_output[cornerx0y0z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_47_d5x49x5_output[cornerx4y0z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_47_d5x49x5_output[cornerx0y8z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_47_d5x49x5_output[cornerx4y8z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], xfract4(pos3), yfract8(pos3), zfract4(pos3))), abs(interpolate(buffers.density_function_RangeChoice_49_d5x49x5_output[cornerx0y0z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_49_d5x49x5_output[cornerx4y0z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_49_d5x49x5_output[cornerx0y8z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_49_d5x49x5_output[cornerx4y8z0_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_49_d5x49x5_output[cornerx0y0z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_49_d5x49x5_output[cornerx4y0z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_49_d5x49x5_output[cornerx0y8z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], buffers.density_function_RangeChoice_49_d5x49x5_output[cornerx4y8z4_8(pos3, 5_i32, 49_i32, 5_i32) as usize], xfract4(pos3), yfract8(pos3), zfract4(pos3))))));
         }
-        return (-0.390625_f64 + (0.1171875_f64 + (((var * 1_f64) + 0_f64) * (-0.1171875_f64 + (-0.078125_f64 + (((var_1 * -1_f64) + 1_f64) * (0.078125_f64 + clamp((-0.703125_f64 + (4_f64 * var_4)), -64_f64, 64_f64))))))));
+        return min(var_1, var_3);
     }
     
     #[inline]
-    fn preliminary_surface_level_d4x1x4(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
+    fn preliminary_surface_level_d128x1x128(p: PositionIterator, config: &Config, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) -> f64 {
         let mut rpos3: Vec3;
         let mut var: i32;
         let mut var_1: i32;
@@ -2250,13 +2187,14 @@ pub mod density_function {
         let mut origin_scale: Vec3 = config.origin_scale;
         let mut position_scale: Vec3 = config.position_scale;
         rpos3 = ((origin * origin_scale) + (pos3 * position_scale));
-        var = ((floor((clamp((128_f64 + (-128_f64 * ((0.2734375_f64 * (1_f64 / buffers.density_function_Cache2d_69_d4x1x4_output[index(p) as usize])) + (-1_f64 * buffers.density_function_Cache2d_51_d4x1x4_output[index(p) as usize])))), -40_f64, 320_f64) / 8_f64)) * 8_f64) as i32);
+        var = ((floor((clamp((128_f64 + (-128_f64 * ((0.2734375_f64 * (1_f64 / buffers.density_function_Cache2d_80_d128x1x128_output[index(p) as usize])) + (-1_f64 * buffers.density_function_Cache2d_62_d128x1x128_output[index(p) as usize])))), -40_f64, 320_f64) / 8_f64)) * 8_f64) as i32);
         if (var <= -64_i32) {
             var = -64_i32;
         } else {
             var_1 = (var / 8_i32);
+            var = -64_i32;
             while (var_1 >= -8_i32) {
-                if (buffers.density_function_71_d4x48x4_output[preliminary_surface_index(pos3, (var_1 as i32), 8_i32, 4_i32, 48_i32, 4_i32) as usize] > 0_f64) {
+                if (buffers.density_function_82_d128x48x128_output[preliminary_surface_index(pos3, ((var_1 - -8_i32) as i32), 8_i32, 128_i32, 48_i32, 128_i32) as usize] > 0_f64) {
                     var = (var_1 * 8_i32);
                     break;
                 }
@@ -2355,11 +2293,35 @@ pub mod density_function {
         }
     }
     
-    pub fn density_function_Const_52_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (4_i32, 1_i32, 4_i32) };
+    pub fn minecraft_ore_vein_a_57_d5x49x5_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(4_f64, 4_f64, 4_f64), position_scale: Vec3::new(16_f64, 32_f64, 16_f64), dimensions: (5_i32, 49_i32, 5_i32) };
         for p in iter_3d((&config)) {
-            let r: f64 = density_function_Const_52_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.density_function_Const_52_d4x1x4_output[index(p) as usize] = r;
+            let r: f64 = minecraft_ore_vein_a_57_d5x49x5(p, (&config), buffers, auto_constants, host_consts);
+            buffers.minecraft_ore_vein_a_57_d5x49x5_output[index(p) as usize] = r;
+        }
+    }
+    
+    pub fn minecraft_ore_vein_b_59_d5x49x5_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(4_f64, 4_f64, 4_f64), position_scale: Vec3::new(16_f64, 32_f64, 16_f64), dimensions: (5_i32, 49_i32, 5_i32) };
+        for p in iter_3d((&config)) {
+            let r: f64 = minecraft_ore_vein_b_59_d5x49x5(p, (&config), buffers, auto_constants, host_consts);
+            buffers.minecraft_ore_vein_b_59_d5x49x5_output[index(p) as usize] = r;
+        }
+    }
+    
+    pub fn minecraft_ore_veininess_61_d5x49x5_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1.5_f64, 1.5_f64, 1.5_f64), position_scale: Vec3::new(6_f64, 12_f64, 6_f64), dimensions: (5_i32, 49_i32, 5_i32) };
+        for p in iter_3d((&config)) {
+            let r: f64 = minecraft_ore_veininess_61_d5x49x5(p, (&config), buffers, auto_constants, host_consts);
+            buffers.minecraft_ore_veininess_61_d5x49x5_output[index(p) as usize] = r;
+        }
+    }
+    
+    pub fn density_function_Const_63_d128x1x128_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (128_i32, 1_i32, 128_i32) };
+        for p in iter_3d((&config)) {
+            let r: f64 = density_function_Const_63_d128x1x128(p, (&config), buffers, auto_constants, host_consts);
+            buffers.density_function_Const_63_d128x1x128_output[index(p) as usize] = r;
         }
     }
     
@@ -2443,11 +2405,11 @@ pub mod density_function {
         }
     }
     
-    pub fn density_function_Cache2d_56_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (4_i32, 1_i32, 4_i32) };
+    pub fn density_function_Cache2d_67_d128x1x128_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (128_i32, 1_i32, 128_i32) };
         for p in iter_3d((&config)) {
-            let r: f64 = density_function_Cache2d_56_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.density_function_Cache2d_56_d4x1x4_output[index(p) as usize] = r;
+            let r: f64 = density_function_Cache2d_67_d128x1x128(p, (&config), buffers, auto_constants, host_consts);
+            buffers.density_function_Cache2d_67_d128x1x128_output[index(p) as usize] = r;
         }
     }
     
@@ -2459,11 +2421,11 @@ pub mod density_function {
         }
     }
     
-    pub fn minecraft_offset_6_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(0.25_f64, 0_f64, 0.25_f64), position_scale: Vec3::new(1_f64, 0_f64, 1_f64), dimensions: (4_i32, 1_i32, 4_i32) };
+    pub fn minecraft_offset_6_d128x1x128_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(0.25_f64, 0_f64, 0.25_f64), position_scale: Vec3::new(1_f64, 0_f64, 1_f64), dimensions: (128_i32, 1_i32, 128_i32) };
         for p in iter_3d((&config)) {
-            let r: f64 = minecraft_offset_6_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.minecraft_offset_6_d4x1x4_output[index(p) as usize] = r;
+            let r: f64 = minecraft_offset_6_d128x1x128(p, (&config), buffers, auto_constants, host_consts);
+            buffers.minecraft_offset_6_d128x1x128_output[index(p) as usize] = r;
         }
     }
     
@@ -2507,6 +2469,30 @@ pub mod density_function {
         }
     }
     
+    pub fn density_function_RangeChoice_56_d5x49x5_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(4_f64, 8_f64, 4_f64), dimensions: (5_i32, 49_i32, 5_i32) };
+        for p in iter_3d((&config)) {
+            let r: f64 = density_function_RangeChoice_56_d5x49x5(p, (&config), buffers, auto_constants, host_consts);
+            buffers.density_function_RangeChoice_56_d5x49x5_output[index(p) as usize] = r;
+        }
+    }
+    
+    pub fn density_function_RangeChoice_58_d5x49x5_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(4_f64, 8_f64, 4_f64), dimensions: (5_i32, 49_i32, 5_i32) };
+        for p in iter_3d((&config)) {
+            let r: f64 = density_function_RangeChoice_58_d5x49x5(p, (&config), buffers, auto_constants, host_consts);
+            buffers.density_function_RangeChoice_58_d5x49x5_output[index(p) as usize] = r;
+        }
+    }
+    
+    pub fn density_function_RangeChoice_60_d5x49x5_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(4_f64, 8_f64, 4_f64), dimensions: (5_i32, 49_i32, 5_i32) };
+        for p in iter_3d((&config)) {
+            let r: f64 = density_function_RangeChoice_60_d5x49x5(p, (&config), buffers, auto_constants, host_consts);
+            buffers.density_function_RangeChoice_60_d5x49x5_output[index(p) as usize] = r;
+        }
+    }
+    
     pub fn density_function_Add_35_d5x49x5_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
         let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(4_f64, 8_f64, 4_f64), dimensions: (5_i32, 49_i32, 5_i32) };
         for p in iter_3d((&config)) {
@@ -2539,11 +2525,11 @@ pub mod density_function {
         }
     }
     
-    pub fn density_function_Cache2d_55_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (4_i32, 1_i32, 4_i32) };
+    pub fn density_function_Cache2d_66_d128x1x128_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (128_i32, 1_i32, 128_i32) };
         for p in iter_3d((&config)) {
-            let r: f64 = density_function_Cache2d_55_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.density_function_Cache2d_55_d4x1x4_output[index(p) as usize] = r;
+            let r: f64 = density_function_Cache2d_66_d128x1x128(p, (&config), buffers, auto_constants, host_consts);
+            buffers.density_function_Cache2d_66_d128x1x128_output[index(p) as usize] = r;
         }
     }
     
@@ -2555,6 +2541,22 @@ pub mod density_function {
         }
     }
     
+    pub fn vein_ridged_d16x384x16_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(1_f64, 1_f64, 1_f64), dimensions: (16_i32, 384_i32, 16_i32) };
+        for p in iter_3d((&config)) {
+            let r: f64 = vein_ridged_d16x384x16(p, (&config), buffers, auto_constants, host_consts);
+            buffers.vein_ridged_d16x384x16_output[index(p) as usize] = r;
+        }
+    }
+    
+    pub fn vein_toggle_d16x384x16_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(1_f64, 1_f64, 1_f64), dimensions: (16_i32, 384_i32, 16_i32) };
+        for p in iter_3d((&config)) {
+            let r: f64 = vein_toggle_d16x384x16(p, (&config), buffers, auto_constants, host_consts);
+            buffers.vein_toggle_d16x384x16_output[index(p) as usize] = r;
+        }
+    }
+    
     pub fn density_function_Min_24_d5x49x5_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
         let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(4_f64, 8_f64, 4_f64), dimensions: (5_i32, 49_i32, 5_i32) };
         for p in iter_3d((&config)) {
@@ -2563,27 +2565,27 @@ pub mod density_function {
         }
     }
     
-    pub fn density_function_ShiftedNoise_54_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (4_i32, 1_i32, 4_i32) };
+    pub fn density_function_ShiftedNoise_65_d128x1x128_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (128_i32, 1_i32, 128_i32) };
         for p in iter_3d((&config)) {
-            let r: f64 = density_function_ShiftedNoise_54_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.density_function_ShiftedNoise_54_d4x1x4_output[index(p) as usize] = r;
+            let r: f64 = density_function_ShiftedNoise_65_d128x1x128(p, (&config), buffers, auto_constants, host_consts);
+            buffers.density_function_ShiftedNoise_65_d128x1x128_output[index(p) as usize] = r;
         }
     }
     
-    pub fn density_function_ShiftedNoise_60_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (4_i32, 1_i32, 4_i32) };
+    pub fn density_function_ShiftedNoise_71_d128x1x128_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (128_i32, 1_i32, 128_i32) };
         for p in iter_3d((&config)) {
-            let r: f64 = density_function_ShiftedNoise_60_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.density_function_ShiftedNoise_60_d4x1x4_output[index(p) as usize] = r;
+            let r: f64 = density_function_ShiftedNoise_71_d128x1x128(p, (&config), buffers, auto_constants, host_consts);
+            buffers.density_function_ShiftedNoise_71_d128x1x128_output[index(p) as usize] = r;
         }
     }
     
-    pub fn density_function_ShiftedNoise_65_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (4_i32, 1_i32, 4_i32) };
+    pub fn density_function_ShiftedNoise_76_d128x1x128_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (128_i32, 1_i32, 128_i32) };
         for p in iter_3d((&config)) {
-            let r: f64 = density_function_ShiftedNoise_65_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.density_function_ShiftedNoise_65_d4x1x4_output[index(p) as usize] = r;
+            let r: f64 = density_function_ShiftedNoise_76_d128x1x128(p, (&config), buffers, auto_constants, host_consts);
+            buffers.density_function_ShiftedNoise_76_d128x1x128_output[index(p) as usize] = r;
         }
     }
     
@@ -2611,35 +2613,35 @@ pub mod density_function {
         }
     }
     
-    pub fn minecraft_overworld_ridges_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (4_i32, 1_i32, 4_i32) };
+    pub fn minecraft_overworld_ridges_d128x1x128_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (128_i32, 1_i32, 128_i32) };
         for p in iter_3d((&config)) {
-            let r: f64 = minecraft_overworld_ridges_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.minecraft_overworld_ridges_d4x1x4_output[index(p) as usize] = r;
+            let r: f64 = minecraft_overworld_ridges_d128x1x128(p, (&config), buffers, auto_constants, host_consts);
+            buffers.minecraft_overworld_ridges_d128x1x128_output[index(p) as usize] = r;
         }
     }
     
-    pub fn minecraft_overworld_ridges_folded_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (4_i32, 1_i32, 4_i32) };
+    pub fn minecraft_overworld_ridges_folded_d128x1x128_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (128_i32, 1_i32, 128_i32) };
         for p in iter_3d((&config)) {
-            let r: f64 = minecraft_overworld_ridges_folded_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.minecraft_overworld_ridges_folded_d4x1x4_output[index(p) as usize] = r;
+            let r: f64 = minecraft_overworld_ridges_folded_d128x1x128(p, (&config), buffers, auto_constants, host_consts);
+            buffers.minecraft_overworld_ridges_folded_d128x1x128_output[index(p) as usize] = r;
         }
     }
     
-    pub fn minecraft_overworld_erosion_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (4_i32, 1_i32, 4_i32) };
+    pub fn minecraft_overworld_erosion_d128x1x128_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (128_i32, 1_i32, 128_i32) };
         for p in iter_3d((&config)) {
-            let r: f64 = minecraft_overworld_erosion_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.minecraft_overworld_erosion_d4x1x4_output[index(p) as usize] = r;
+            let r: f64 = minecraft_overworld_erosion_d128x1x128(p, (&config), buffers, auto_constants, host_consts);
+            buffers.minecraft_overworld_erosion_d128x1x128_output[index(p) as usize] = r;
         }
     }
     
-    pub fn minecraft_overworld_continents_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (4_i32, 1_i32, 4_i32) };
+    pub fn minecraft_overworld_continents_d128x1x128_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (128_i32, 1_i32, 128_i32) };
         for p in iter_3d((&config)) {
-            let r: f64 = minecraft_overworld_continents_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.minecraft_overworld_continents_d4x1x4_output[index(p) as usize] = r;
+            let r: f64 = minecraft_overworld_continents_d128x1x128(p, (&config), buffers, auto_constants, host_consts);
+            buffers.minecraft_overworld_continents_d128x1x128_output[index(p) as usize] = r;
         }
     }
     
@@ -2675,19 +2677,19 @@ pub mod density_function {
         }
     }
     
-    pub fn density_function_Cache2d_69_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (4_i32, 1_i32, 4_i32) };
+    pub fn density_function_Cache2d_80_d128x1x128_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (128_i32, 1_i32, 128_i32) };
         for p in iter_3d((&config)) {
-            let r: f64 = density_function_Cache2d_69_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.density_function_Cache2d_69_d4x1x4_output[index(p) as usize] = r;
+            let r: f64 = density_function_Cache2d_80_d128x1x128(p, (&config), buffers, auto_constants, host_consts);
+            buffers.density_function_Cache2d_80_d128x1x128_output[index(p) as usize] = r;
         }
     }
     
-    pub fn density_function_Cache2d_51_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (4_i32, 1_i32, 4_i32) };
+    pub fn density_function_Cache2d_62_d128x1x128_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 0_f64, 1_f64), position_scale: Vec3::new(4_f64, 0_f64, 4_f64), dimensions: (128_i32, 1_i32, 128_i32) };
         for p in iter_3d((&config)) {
-            let r: f64 = density_function_Cache2d_51_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.density_function_Cache2d_51_d4x1x4_output[index(p) as usize] = r;
+            let r: f64 = density_function_Cache2d_62_d128x1x128(p, (&config), buffers, auto_constants, host_consts);
+            buffers.density_function_Cache2d_62_d128x1x128_output[index(p) as usize] = r;
         }
     }
     
@@ -2723,19 +2725,11 @@ pub mod density_function {
         }
     }
     
-    pub fn minecraft_overworld_offset_d4x48x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(4_f64, 8_f64, 4_f64), dimensions: (4_i32, 48_i32, 4_i32) };
+    pub fn density_function_82_d128x48x128_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(4_f64, 8_f64, 4_f64), dimensions: (128_i32, 48_i32, 128_i32) };
         for p in iter_3d((&config)) {
-            let r: f64 = minecraft_overworld_offset_d4x48x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.minecraft_overworld_offset_d4x48x4_output[index(p) as usize] = r;
-        }
-    }
-    
-    pub fn minecraft_overworld_factor_d4x48x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(4_f64, 8_f64, 4_f64), dimensions: (4_i32, 48_i32, 4_i32) };
-        for p in iter_3d((&config)) {
-            let r: f64 = minecraft_overworld_factor_d4x48x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.minecraft_overworld_factor_d4x48x4_output[index(p) as usize] = r;
+            let r: f64 = density_function_82_d128x48x128(p, (&config), buffers, auto_constants, host_consts);
+            buffers.density_function_82_d128x48x128_output[index(p) as usize] = r;
         }
     }
     
@@ -2747,20 +2741,19 @@ pub mod density_function {
         }
     }
     
-    pub fn density_function_71_d4x48x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(4_f64, 8_f64, 4_f64), dimensions: (4_i32, 48_i32, 4_i32) };
+    pub fn final_density_d16x384x16_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(1_f64, 1_f64, 1_f64), dimensions: (16_i32, 384_i32, 16_i32) };
         for p in iter_3d((&config)) {
-            let r: f64 = density_function_71_d4x48x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.density_function_71_d4x48x4_output[index(p) as usize] = r;
+            let r: f64 = final_density_d16x384x16(p, (&config), buffers, auto_constants, host_consts);
+            buffers.final_density_d16x384x16_output[index(p) as usize] = r;
         }
     }
     
-    pub fn preliminary_surface_level_d4x1x4_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
-        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(4_f64, 8_f64, 4_f64), dimensions: (4_i32, 1_i32, 4_i32) };
+    pub fn preliminary_surface_level_d128x1x128_kernel(origin: Vec3, buffers: &mut InternalBuffers, auto_constants: &AutoConsts, host_consts: &HostConsts) {
+        let config: Config = Config { origin: origin, origin_scale: Vec3::new(1_f64, 1_f64, 1_f64), position_scale: Vec3::new(4_f64, 8_f64, 4_f64), dimensions: (128_i32, 1_i32, 128_i32) };
         for p in iter_3d((&config)) {
-            let r: f64 = preliminary_surface_level_d4x1x4(p, (&config), buffers, auto_constants, host_consts);
-            buffers.preliminary_surface_level_d4x1x4_output[index(p) as usize] = r;
->>>>>>> Stashed changes
+            let r: f64 = preliminary_surface_level_d128x1x128(p, (&config), buffers, auto_constants, host_consts);
+            buffers.preliminary_surface_level_d128x1x128_output[index(p) as usize] = r;
         }
     }
     
@@ -2788,8 +2781,6 @@ pub mod orchestration {
     #[repr(C)]
     #[derive(Clone)]
     pub struct AutoConsts {
-<<<<<<< Updated upstream
-=======
         pub minecraft_spaghetti_2d_0_octave__7: PerlinNoiseSampler,
         pub minecraft_spaghetti_2d_1_octave__7: PerlinNoiseSampler,
         pub minecraft_ridge_0_octave__7: PerlinNoiseSampler,
@@ -2798,15 +2789,12 @@ pub mod orchestration {
         pub minecraft_ridge_1_octave__6: PerlinNoiseSampler,
         pub minecraft_ridge_0_octave__5: PerlinNoiseSampler,
         pub minecraft_ridge_1_octave__5: PerlinNoiseSampler,
->>>>>>> Stashed changes
         pub minecraft_offset_0_octave__3: PerlinNoiseSampler,
         pub minecraft_offset_1_octave__3: PerlinNoiseSampler,
         pub minecraft_offset_0_octave__2: PerlinNoiseSampler,
         pub minecraft_offset_1_octave__2: PerlinNoiseSampler,
         pub minecraft_offset_0_octave__1: PerlinNoiseSampler,
         pub minecraft_offset_1_octave__1: PerlinNoiseSampler,
-<<<<<<< Updated upstream
-=======
         pub minecraft_erosion_0_octave__9: PerlinNoiseSampler,
         pub minecraft_erosion_1_octave__9: PerlinNoiseSampler,
         pub minecraft_erosion_0_octave__8: PerlinNoiseSampler,
@@ -2922,32 +2910,34 @@ pub mod orchestration {
         pub minecraft_noodle_ridge_a_1_octave__7: PerlinNoiseSampler,
         pub minecraft_noodle_ridge_b_0_octave__7: PerlinNoiseSampler,
         pub minecraft_noodle_ridge_b_1_octave__7: PerlinNoiseSampler,
->>>>>>> Stashed changes
+        pub minecraft_ore_vein_a_0_octave__7: PerlinNoiseSampler,
+        pub minecraft_ore_vein_a_1_octave__7: PerlinNoiseSampler,
+        pub minecraft_ore_vein_b_0_octave__7: PerlinNoiseSampler,
+        pub minecraft_ore_vein_b_1_octave__7: PerlinNoiseSampler,
+        pub minecraft_ore_veininess_0_octave__8: PerlinNoiseSampler,
+        pub minecraft_ore_veininess_1_octave__8: PerlinNoiseSampler,
     }
     
     #[repr(C)]
     #[derive(Clone, Copy)]
     pub struct InternalBuffers {
         pub final_density_with_beardify_d16x384x16_output: [f64; 98304],
-<<<<<<< Updated upstream
         pub final_density_d16x384x16_output: [f64; 98304],
+        pub vein_ridged_d16x384x16_output: [f64; 98304],
+        pub vein_toggle_d16x384x16_output: [f64; 98304],
         pub preliminary_surface_level_d128x1x128_output: [f64; 16384],
-        pub density_function_FlatCache_0_d16x384x16_output: [f64; 98304],
-        pub Beardifier_d16x384x16_output: [f64; 98304],
-        pub density_function_Cache2d_1_d4x1x4_output: [f64; 16],
-        pub density_function_Cache2d_2_d4x1x4_output: [f64; 16],
-        pub minecraft_offset_3_d4x1x4_output: [f64; 16],
-=======
-        pub preliminary_surface_level_d4x1x4_output: [f64; 16],
         pub density_function_Add_0_d5x49x5_output: [f64; 1225],
         pub density_function_RangeChoice_43_d5x49x5_output: [f64; 1225],
         pub density_function_RangeChoice_45_d5x49x5_output: [f64; 1225],
         pub density_function_RangeChoice_47_d5x49x5_output: [f64; 1225],
         pub density_function_RangeChoice_49_d5x49x5_output: [f64; 1225],
         pub Beardifier_d16x384x16_output: [f64; 98304],
-        pub density_function_71_d4x48x4_output: [f64; 768],
-        pub density_function_Cache2d_69_d4x1x4_output: [f64; 16],
-        pub density_function_Cache2d_51_d4x1x4_output: [f64; 16],
+        pub density_function_RangeChoice_56_d5x49x5_output: [f64; 1225],
+        pub density_function_RangeChoice_58_d5x49x5_output: [f64; 1225],
+        pub density_function_RangeChoice_60_d5x49x5_output: [f64; 1225],
+        pub density_function_82_d128x48x128_output: [f64; 786432],
+        pub density_function_Cache2d_80_d128x1x128_output: [f64; 16384],
+        pub density_function_Cache2d_62_d128x1x128_output: [f64; 16384],
         pub density_function_Cache2d_1_d5x1x5_output: [f64; 25],
         pub density_function_Cache2d_20_d5x1x5_output: [f64; 25],
         pub minecraft_jagged_22_d5x1x5_output: [f64; 25],
@@ -2965,13 +2955,14 @@ pub mod orchestration {
         pub minecraft_noodle_thickness_46_d5x49x5_output: [f64; 1225],
         pub minecraft_noodle_ridge_a_48_d5x49x5_output: [f64; 1225],
         pub minecraft_noodle_ridge_b_50_d5x49x5_output: [f64; 1225],
-        pub minecraft_overworld_offset_d4x48x4_output: [f64; 768],
-        pub minecraft_overworld_factor_d4x48x4_output: [f64; 768],
-        pub minecraft_overworld_ridges_d4x1x4_output: [f64; 16],
-        pub minecraft_overworld_ridges_folded_d4x1x4_output: [f64; 16],
-        pub minecraft_overworld_erosion_d4x1x4_output: [f64; 16],
-        pub minecraft_overworld_continents_d4x1x4_output: [f64; 16],
-        pub density_function_Const_52_d4x1x4_output: [f64; 16],
+        pub minecraft_ore_vein_a_57_d5x49x5_output: [f64; 1225],
+        pub minecraft_ore_vein_b_59_d5x49x5_output: [f64; 1225],
+        pub minecraft_ore_veininess_61_d5x49x5_output: [f64; 1225],
+        pub minecraft_overworld_ridges_d128x1x128_output: [f64; 16384],
+        pub minecraft_overworld_ridges_folded_d128x1x128_output: [f64; 16384],
+        pub minecraft_overworld_erosion_d128x1x128_output: [f64; 16384],
+        pub minecraft_overworld_continents_d128x1x128_output: [f64; 16384],
+        pub density_function_Const_63_d128x1x128_output: [f64; 16384],
         pub density_function_Const_2_d5x1x5_output: [f64; 25],
         pub minecraft_overworld_ridges_folded_d5x1x5_output: [f64; 25],
         pub minecraft_overworld_erosion_d5x1x5_output: [f64; 25],
@@ -2986,20 +2977,19 @@ pub mod orchestration {
         pub minecraft_pillar_40_d5x49x5_output: [f64; 1225],
         pub minecraft_pillar_rareness_41_d5x49x5_output: [f64; 1225],
         pub minecraft_pillar_thickness_42_d5x49x5_output: [f64; 1225],
-        pub density_function_ShiftedNoise_54_d4x1x4_output: [f64; 16],
-        pub density_function_ShiftedNoise_60_d4x1x4_output: [f64; 16],
-        pub density_function_ShiftedNoise_65_d4x1x4_output: [f64; 16],
+        pub density_function_ShiftedNoise_65_d128x1x128_output: [f64; 16384],
+        pub density_function_ShiftedNoise_71_d128x1x128_output: [f64; 16384],
+        pub density_function_ShiftedNoise_76_d128x1x128_output: [f64; 16384],
         pub density_function_ShiftedNoise_4_d5x1x5_output: [f64; 25],
         pub density_function_ShiftedNoise_11_d5x1x5_output: [f64; 25],
         pub density_function_ShiftedNoise_16_d5x1x5_output: [f64; 25],
         pub minecraft_spaghetti_3d_rarity_30_d5x49x5_output: [f64; 1225],
-        pub density_function_Cache2d_55_d4x1x4_output: [f64; 16],
-        pub density_function_Cache2d_56_d4x1x4_output: [f64; 16],
+        pub density_function_Cache2d_66_d128x1x128_output: [f64; 16384],
+        pub density_function_Cache2d_67_d128x1x128_output: [f64; 16384],
         pub density_function_Cache2d_5_d5x1x5_output: [f64; 25],
         pub density_function_Cache2d_7_d5x1x5_output: [f64; 25],
-        pub minecraft_offset_6_d4x1x4_output: [f64; 16],
+        pub minecraft_offset_6_d128x1x128_output: [f64; 16384],
         pub minecraft_offset_6_d5x1x5_output: [f64; 25],
->>>>>>> Stashed changes
     }
     
     #[derive(Clone)]
@@ -3009,8 +2999,6 @@ pub mod orchestration {
     }
     
     fn make_auto_consts(seed: i64, auto_consts: &mut AutoConsts) {
-<<<<<<< Updated upstream
-=======
         auto_consts.minecraft_spaghetti_2d_0_octave__7 = make_permutation_table(seed, 3779800575929599095_i64, 3026987529072654797_i64, 0_i64, -1075682932162398897_i64, 2700503254851170474_i64);
         auto_consts.minecraft_spaghetti_2d_1_octave__7 = make_permutation_table(seed, 3779800575929599095_i64, 3026987529072654797_i64, 1_i64, -1075682932162398897_i64, 2700503254851170474_i64);
         auto_consts.minecraft_ridge_0_octave__7 = make_permutation_table(seed, -1168420988404094156_i64, 2012804684704589034_i64, 0_i64, -1075682932162398897_i64, 2700503254851170474_i64);
@@ -3019,15 +3007,12 @@ pub mod orchestration {
         auto_consts.minecraft_ridge_1_octave__6 = make_permutation_table(seed, -1168420988404094156_i64, 2012804684704589034_i64, 1_i64, -1937505727046359452_i64, 6887262389667105861_i64);
         auto_consts.minecraft_ridge_0_octave__5 = make_permutation_table(seed, -1168420988404094156_i64, 2012804684704589034_i64, 0_i64, 7888980432583755018_i64, 3328269827262531447_i64);
         auto_consts.minecraft_ridge_1_octave__5 = make_permutation_table(seed, -1168420988404094156_i64, 2012804684704589034_i64, 1_i64, 7888980432583755018_i64, 3328269827262531447_i64);
->>>>>>> Stashed changes
         auto_consts.minecraft_offset_0_octave__3 = make_permutation_table(seed, 577895406318539652_i64, 4557074653038767061_i64, 0_i64, 6040343492819601496_i64, -4840870798921671874_i64);
         auto_consts.minecraft_offset_1_octave__3 = make_permutation_table(seed, 577895406318539652_i64, 4557074653038767061_i64, 1_i64, 6040343492819601496_i64, -4840870798921671874_i64);
         auto_consts.minecraft_offset_0_octave__2 = make_permutation_table(seed, 577895406318539652_i64, 4557074653038767061_i64, 0_i64, -5430693012044290181_i64, 162122330481997252_i64);
         auto_consts.minecraft_offset_1_octave__2 = make_permutation_table(seed, 577895406318539652_i64, 4557074653038767061_i64, 1_i64, -5430693012044290181_i64, 162122330481997252_i64);
         auto_consts.minecraft_offset_0_octave__1 = make_permutation_table(seed, 577895406318539652_i64, 4557074653038767061_i64, 0_i64, -2307493697404144120_i64, -5064731985740145495_i64);
         auto_consts.minecraft_offset_1_octave__1 = make_permutation_table(seed, 577895406318539652_i64, 4557074653038767061_i64, 1_i64, -2307493697404144120_i64, -5064731985740145495_i64);
-<<<<<<< Updated upstream
-=======
         auto_consts.minecraft_erosion_0_octave__9 = make_permutation_table(seed, -3448470997537165352_i64, 5157273775208757888_i64, 0_i64, 589938935082149425_i64, 5662732952352513153_i64);
         auto_consts.minecraft_erosion_1_octave__9 = make_permutation_table(seed, -3448470997537165352_i64, 5157273775208757888_i64, 1_i64, 589938935082149425_i64, 5662732952352513153_i64);
         auto_consts.minecraft_erosion_0_octave__8 = make_permutation_table(seed, -3448470997537165352_i64, 5157273775208757888_i64, 0_i64, 1078206144088113246_i64, 5239585857299060288_i64);
@@ -3143,7 +3128,12 @@ pub mod orchestration {
         auto_consts.minecraft_noodle_ridge_a_1_octave__7 = make_permutation_table(seed, -8784505538917474266_i64, 5361047657610944607_i64, 1_i64, -1075682932162398897_i64, 2700503254851170474_i64);
         auto_consts.minecraft_noodle_ridge_b_0_octave__7 = make_permutation_table(seed, -1503310247173955951_i64, 224869257309605468_i64, 0_i64, -1075682932162398897_i64, 2700503254851170474_i64);
         auto_consts.minecraft_noodle_ridge_b_1_octave__7 = make_permutation_table(seed, -1503310247173955951_i64, 224869257309605468_i64, 1_i64, -1075682932162398897_i64, 2700503254851170474_i64);
->>>>>>> Stashed changes
+        auto_consts.minecraft_ore_vein_a_0_octave__7 = make_permutation_table(seed, 5537411705652647497_i64, -3614632279681731091_i64, 0_i64, -1075682932162398897_i64, 2700503254851170474_i64);
+        auto_consts.minecraft_ore_vein_a_1_octave__7 = make_permutation_table(seed, 5537411705652647497_i64, -3614632279681731091_i64, 1_i64, -1075682932162398897_i64, 2700503254851170474_i64);
+        auto_consts.minecraft_ore_vein_b_0_octave__7 = make_permutation_table(seed, 7720896042651600585_i64, -5906612891113836863_i64, 0_i64, -1075682932162398897_i64, 2700503254851170474_i64);
+        auto_consts.minecraft_ore_vein_b_1_octave__7 = make_permutation_table(seed, 7720896042651600585_i64, -5906612891113836863_i64, 1_i64, -1075682932162398897_i64, 2700503254851170474_i64);
+        auto_consts.minecraft_ore_veininess_0_octave__8 = make_permutation_table(seed, 7748099570268139889_i64, -2846361830251817436_i64, 0_i64, 1078206144088113246_i64, 5239585857299060288_i64);
+        auto_consts.minecraft_ore_veininess_1_octave__8 = make_permutation_table(seed, 7748099570268139889_i64, -2846361830251817436_i64, 1_i64, 1078206144088113246_i64, 5239585857299060288_i64);
     }
     
     impl Orchestration {
@@ -3156,28 +3146,6 @@ pub mod orchestration {
         
         pub fn orchestrate_final_density_with_beardify(&mut self, origin: Vec3, host_consts: &HostConsts) -> &[f64; 98304] {
             let _kernel_call_0_0: () = Beardifier_d16x384x16_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-<<<<<<< Updated upstream
-            let _kernel_call_0_1: () = minecraft_offset_3_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_1_0: () = density_function_Cache2d_2_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_2_0: () = density_function_Cache2d_1_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_3_0: () = density_function_FlatCache_0_d16x384x16_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_4_0: () = final_density_with_beardify_d16x384x16_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            return (&self.buffers.final_density_with_beardify_d16x384x16_output);
-        }
-        
-        pub fn orchestrate_final_density(&mut self, origin: Vec3, host_consts: &HostConsts) -> &[f64; 98304] {
-            let _kernel_call_0_0: () = minecraft_offset_3_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_1_0: () = density_function_Cache2d_2_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_2_0: () = density_function_Cache2d_1_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_3_0: () = density_function_FlatCache_0_d16x384x16_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_4_0: () = final_density_d16x384x16_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            return (&self.buffers.final_density_d16x384x16_output);
-        }
-        
-        pub fn orchestrate_preliminary_surface_level(&mut self, origin: Vec3, host_consts: &HostConsts) -> &[f64; 16384] {
-            let _kernel_call_0_0: () = preliminary_surface_level_d128x1x128_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            return (&self.buffers.preliminary_surface_level_d128x1x128_output);
-=======
             let _kernel_call_0_1: () = minecraft_jagged_22_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
             let _kernel_call_0_2: () = old_blended_noise_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
             let _kernel_call_0_3: () = minecraft_cave_layer_32_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
@@ -3225,26 +3193,87 @@ pub mod orchestration {
             return (&self.buffers.final_density_with_beardify_d16x384x16_output);
         }
         
-        pub fn orchestrate_preliminary_surface_level(&mut self, origin: Vec3, host_consts: &HostConsts) -> &[f64; 16] {
-            let _kernel_call_0_0: () = density_function_Const_52_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_0_1: () = density_function_Cache2d_56_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_0_2: () = minecraft_offset_6_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_1_0: () = density_function_Cache2d_55_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_2_0: () = density_function_ShiftedNoise_54_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_2_1: () = density_function_ShiftedNoise_60_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_2_2: () = density_function_ShiftedNoise_65_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_3_0: () = minecraft_overworld_ridges_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_3_1: () = minecraft_overworld_ridges_folded_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_3_2: () = minecraft_overworld_erosion_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_3_3: () = minecraft_overworld_continents_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_4_0: () = density_function_Cache2d_69_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_4_1: () = density_function_Cache2d_51_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_5_0: () = minecraft_overworld_offset_d4x48x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_5_1: () = minecraft_overworld_factor_d4x48x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_6_0: () = density_function_71_d4x48x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            let _kernel_call_7_0: () = preliminary_surface_level_d4x1x4_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
-            return (&self.buffers.preliminary_surface_level_d4x1x4_output);
->>>>>>> Stashed changes
+        pub fn orchestrate_final_density(&mut self, origin: Vec3, host_consts: &HostConsts) -> &[f64; 98304] {
+            let _kernel_call_0_0: () = minecraft_jagged_22_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_1: () = old_blended_noise_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_2: () = minecraft_cave_layer_32_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_3: () = minecraft_cave_cheese_33_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_4: () = minecraft_spaghetti_2d_modulator_34_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_5: () = minecraft_spaghetti_2d_elevation_37_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_6: () = minecraft_noodle_44_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_7: () = minecraft_noodle_thickness_46_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_8: () = minecraft_noodle_ridge_a_48_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_9: () = minecraft_noodle_ridge_b_50_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_10: () = density_function_Const_2_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_11: () = minecraft_cave_entrance_25_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_12: () = minecraft_spaghetti_3d_thickness_31_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_13: () = minecraft_spaghetti_2d_thickness_36_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_14: () = minecraft_spaghetti_roughness_modulator_27_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_15: () = minecraft_spaghetti_roughness_28_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_16: () = minecraft_pillar_40_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_17: () = minecraft_pillar_rareness_41_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_18: () = minecraft_pillar_thickness_42_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_19: () = minecraft_spaghetti_3d_rarity_30_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_20: () = density_function_Cache2d_7_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_21: () = minecraft_offset_6_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_1_0: () = density_function_RangeChoice_43_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_1_1: () = density_function_RangeChoice_45_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_1_2: () = density_function_RangeChoice_47_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_1_3: () = density_function_RangeChoice_49_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_1_4: () = density_function_Add_35_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_1_5: () = density_function_Multiply_26_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_1_6: () = density_function_Multiply_39_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_1_7: () = density_function_Noise_29_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_1_8: () = density_function_Cache2d_5_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_2_0: () = density_function_Min_24_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_2_1: () = density_function_ShiftedNoise_4_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_2_2: () = density_function_ShiftedNoise_11_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_2_3: () = density_function_ShiftedNoise_16_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_3_0: () = minecraft_overworld_ridges_folded_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_3_1: () = minecraft_overworld_erosion_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_3_2: () = minecraft_overworld_continents_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_3_3: () = minecraft_overworld_ridges_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_4_0: () = density_function_Cache2d_1_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_4_1: () = density_function_Cache2d_20_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_4_2: () = density_function_Cache2d_23_d5x1x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_5_0: () = density_function_Add_0_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_6_0: () = final_density_d16x384x16_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            return (&self.buffers.final_density_d16x384x16_output);
+        }
+        
+        pub fn orchestrate_vein_ridged(&mut self, origin: Vec3, host_consts: &HostConsts) -> &[f64; 98304] {
+            let _kernel_call_0_0: () = minecraft_ore_vein_a_57_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_1: () = minecraft_ore_vein_b_59_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_1_0: () = density_function_RangeChoice_56_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_1_1: () = density_function_RangeChoice_58_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_2_0: () = vein_ridged_d16x384x16_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            return (&self.buffers.vein_ridged_d16x384x16_output);
+        }
+        
+        pub fn orchestrate_vein_toggle(&mut self, origin: Vec3, host_consts: &HostConsts) -> &[f64; 98304] {
+            let _kernel_call_0_0: () = minecraft_ore_veininess_61_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_1_0: () = density_function_RangeChoice_60_d5x49x5_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_2_0: () = vein_toggle_d16x384x16_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            return (&self.buffers.vein_toggle_d16x384x16_output);
+        }
+        
+        pub fn orchestrate_preliminary_surface_level(&mut self, origin: Vec3, host_consts: &HostConsts) -> &[f64; 16384] {
+            let _kernel_call_0_0: () = density_function_Const_63_d128x1x128_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_1: () = density_function_Cache2d_67_d128x1x128_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_0_2: () = minecraft_offset_6_d128x1x128_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_1_0: () = density_function_Cache2d_66_d128x1x128_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_2_0: () = density_function_ShiftedNoise_65_d128x1x128_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_2_1: () = density_function_ShiftedNoise_71_d128x1x128_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_2_2: () = density_function_ShiftedNoise_76_d128x1x128_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_3_0: () = minecraft_overworld_ridges_d128x1x128_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_3_1: () = minecraft_overworld_ridges_folded_d128x1x128_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_3_2: () = minecraft_overworld_erosion_d128x1x128_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_3_3: () = minecraft_overworld_continents_d128x1x128_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_4_0: () = density_function_Cache2d_80_d128x1x128_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_4_1: () = density_function_Cache2d_62_d128x1x128_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_5_0: () = density_function_82_d128x48x128_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            let _kernel_call_6_0: () = preliminary_surface_level_d128x1x128_kernel(origin, (&mut (*self.buffers)), (&(*self.auto_constants)), host_consts);
+            return (&self.buffers.preliminary_surface_level_d128x1x128_output);
         }
     }
     

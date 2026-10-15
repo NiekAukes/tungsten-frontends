@@ -10,6 +10,7 @@ use tungsten_wg::spmt::Function;
 use tungsten_wg::spmt::FunctionRef;
 use tungsten_wg::spmt::HostInput;
 use tungsten_wg::spmt::Interned;
+use tungsten_wg::spmt::Var;
 use tungsten_wg::spmt::VariableType;
 use tungsten_wg::spmt::VariableType::Vec3;
 use tungsten_wg::spmt::VariableType::F64;
@@ -35,15 +36,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
 
         // The general case will indicate whether the special aquifer needs to be computed.
 
-        let DensityType::Aquifer {
-            final_density,
-            depth,
-            erosion,
-            floodedness,
-            spread,
-            fluid_type,
-        } = *density
-        else {
+        let DensityType::Aquifer { .. } = *density else {
             panic!("Expected Aquifer density");
         };
         self.density_function.return_type = I32;
@@ -122,8 +115,11 @@ extern_fns!(
     min_i32(a: I32, b: I32): I32,
     max_distance(a: F64, b: F64): F64,
     get_block_state_from_packed(closest_fluid_level: I64, y_level: I32): I32,
+    get_fluid_level_from_packed(packed: I64): I32,
     block_state(state: I32, fluid_level: I32, y_level: I32): I32,
 );
+
+const NEEDS_FLUID_TICK_DISTANCE_THRESHOLD: f64 = -0.76;
 
 pub fn generate_general_aquifer_sampler<'a, 'm>(
     builder: &mut DensityBuilder<'a, 'm>,
@@ -136,6 +132,7 @@ pub fn generate_general_aquifer_sampler<'a, 'm>(
         floodedness,
         spread,
         fluid_type,
+        barrier,
     } = density
     else {
         panic!("Expected Aquifer density type");
@@ -145,8 +142,9 @@ pub fn generate_general_aquifer_sampler<'a, 'm>(
     // let final_density =
     //     builder.lower_density_input(final_density, Some("FinalDensity".into()), None);
     // let final_density_expr = Expression::DensityVariable(final_density, None);
-    let final_density_expr: Expression = 0.0.into();
-    let mut variables = vec![];
+    let final_density_expr = Expression::from(0.0);
+    let final_density_var = newvar(builder.arena, "final_density", F64);
+    let mut variables = vec![final_density_var];
 
     /*
     // Step 0: solid terrain stays solid. Nothing to do.
@@ -156,7 +154,8 @@ pub fn generate_general_aquifer_sampler<'a, 'm>(
     }
     */
     build!(builder, {
-        if (final_density_expr.gt(0.0)) {
+        final_density_var = final_density_expr;
+        if (final_density_var.gt(0.0)) {
             return Expression::from(BlockState::Solid.needs_fluid_tick(false));
         }
     });
@@ -530,12 +529,12 @@ pub fn generate_general_aquifer_sampler<'a, 'm>(
             // Well inside one site's region: no wall needed, just return its fluid.
             // Only flag a fluid tick if we're still reasonably near a border with a different fluid level.
             let second_closest_fluid_level_for_tick = Expression::DensityVariable(
-                fluid_level_input,
+                fluid_level_input.clone(),
                 Some(Box::new(closest_index2.into())),
             )
             .cast(I64);
             let needs_fluid_tick = closest_pair_factor
-                .ge(-0.76)
+                .ge(NEEDS_FLUID_TICK_DISTANCE_THRESHOLD)
                 .and(!closest_fluid_level.eq_expr(second_closest_fluid_level_for_tick));
             // AquiferSampler.FluidLevel secondClosestFluidLevelForTick = this.getCellFluidLevel(closestIndex2);
             // this.needsFluidTick = !closestFluidLevel.equals(secondClosestFluidLevelForTick);
@@ -543,8 +542,46 @@ pub fn generate_general_aquifer_sampler<'a, 'm>(
         }
     });
 
-    //delegate to special aquifer sampler for handling the border region.
-    // todo!()
+    // Special case: water sitting directly on top of lava must always tick (so they interact).
+    // if (closestFluidState.isOf(Blocks.WATER)
+    //         && this.fluidLevelSampler.getFluidLevel(blockX, blockY - 1, blockZ).getBlockState(blockY - 1).isOf(Blocks.LAVA)) {
+    //     this.needsFluidTick = true;
+    //     return resultState;
+    // }
+    build!(builder, {
+        let fluid_block_state_below = fluid_block_expr(block_y - 1);
+        let fluid_level_state_below = fluid_level_expr(block_y - 1);
+        let block_below_state = block_state(
+            fluid_block_state_below,
+            fluid_level_state_below,
+            block_y - 1,
+        );
+        if (result_state
+            .eq_expr(i32::from(BlockState::Water))
+            .and(block_below_state.eq_expr(i32::from(BlockState::Lava))))
+        {
+            return (result_state.shl(1).bitor(1));
+        }
+    });
+
+    let needs_fluid_tick = newvar(builder.arena, "needs_fluid_tick", VariableType::Bool);
+
+    generate_special_aquifer_sampler(
+        builder,
+        barrier,
+        fluid_level_input,
+        final_density_var,
+        closest_pair_factor,
+        closest_index1,
+        closest_index2,
+        closest_index3,
+        closest_index4,
+        closest_distance_sq1,
+        closest_distance_sq2,
+        closest_distance_sq3,
+        closest_distance_sq4,
+        needs_fluid_tick,
+    );
 
     for v in variables.iter() {
         builder.add_variable(*v);
@@ -552,17 +589,7 @@ pub fn generate_general_aquifer_sampler<'a, 'm>(
 
     builder.density_function.return_type = I32;
 
-    let calculate_density = generate_aquifer_calculate_density(builder);
-    builder
-        .density_function
-        .helper_functions
-        .push(calculate_density);
-    build!(builder, {
-        result_state = calculate_density.call([]);
-    });
-
-    // result_state.into()
-    BlockState::Special.needs_fluid_tick(false).into()
+    result_state.shl(1).bitor(needs_fluid_tick.cast(I32))
 }
 
 fn generate_closest_sites<'a, 'm>(
@@ -937,7 +964,7 @@ fn generate_water_levels<'a, 'm>(
                 //     !block_state(surface_fluid_block, surface_fluid_level, aquifer_surface_y).eq_expr(i32::from(BlockState::Air));
 
                 // a contraction of the above expression
-                let condition = surface_fluid_level.le(aquifer_surface_y);
+                let condition = surface_fluid_level.gt(aquifer_surface_y);
 
                 if (condition) {
                     if (is_near_surface) {
@@ -1243,16 +1270,218 @@ fn generate_fluid_level_sampler<'a, 'm>(
     (function, function2)
 }
 
+fn generate_special_aquifer_sampler<'a, 'm>(
+    builder: &mut DensityBuilder<'a, 'm>,
+    barrier: Density<'a>,
+    fluid_level_input: DensityInput<'m>,
+    final_density: Var<'m>,
+    closest_pair_factor: Var<'m>,
+    closest_index1: Var<'m>,
+    closest_index2: Var<'m>,
+    closest_index3: Var<'m>,
+    closest_index4: Var<'m>,
+    closest_distance_sq1: Var<'m>,
+    closest_distance_sq2: Var<'m>,
+    closest_distance_sq3: Var<'m>,
+    closest_distance_sq4: Var<'m>,
+    needs_fluid_tick: Var<'m>,
+) {
+    /*
+    // Step 5: we're near a border between sites. Between each pair of nearby sites with different
+    // fluid levels, compute a "barrier" value; if terrain density + barrier > 0, the block becomes solid.
+    // The cache avoids sampling the (expensive) barrier noise more than once for this block.
+    MutableDouble barrierNoiseCache = new MutableDouble(Double.NaN);
+    */
+    let barrier_noise = newvar(builder.arena, "barrier_noise", VariableType::F64);
+    builder.always_inline_non_2d = true;
+    builder.add_variable(barrier_noise);
+
+    let barrier_func = Function {
+        canonical_name: Some("barrier".into()),
+        parameters: vec![builder.rpos3],
+        body: vec![],
+        variables: vec![],
+        return_type: F64,
+    };
+
+    builder.switch_function(barrier_func);
+    let e = builder.lower_density(barrier);
+    let barrier_func = builder.finish_and_continue(e, None);
+    builder.always_inline_non_2d = false;
+
+    let rpos_expr: Expression<'m> = builder.rpos3.into();
+
+    let calculate_density_func = generate_aquifer_calculate_density(builder);
+
+    builder
+        .density_function
+        .helper_functions
+        .push(calculate_density_func);
+
+    // fluid_1 and fluid_2 are packed representations of fluid samplers
+    let call_calculate_density =
+        |fluid_1: Expression<'m>, fluid_2: Expression<'m>| Expression::FunctionCall {
+            function: calculate_density_func,
+            parameters: vec![rpos_expr.clone(), barrier_noise.into(), fluid_1, fluid_2],
+        };
+
+    build!(builder, {
+        barrier_noise = Expression::FunctionCall {
+            function: barrier_func,
+            parameters: vec![builder.rpos3.into()],
+        };
+    });
+
+    /*
+    // Barrier between sites 1 and 2.
+    AquiferSampler.FluidLevel secondClosestFluidLevel = this.getCellFluidLevel(closestIndex2);
+    double densityAdjustment12 = closestPairFactor * this.calculateDensity(pos, barrierNoiseCache, closestFluidLevel, secondClosestFluidLevel);
+    if (density + densityAdjustment12 > 0.0) {
+        this.needsFluidTick = false;
+        return null;
+    }
+    */
+    // let closest_fluid = fluid_level_input.at(closest_index);
+    // let second_closest_fluid = fluid_level_input.at(closest_index2);
+    // let third_closest_fluid = fluid_level_input.at(closest_index3);
+    let closest_fluid = newvar(builder.arena, "closest_fluid", I64);
+    let second_closest_fluid = newvar(builder.arena, "second_closest_fluid", I64);
+    let third_closest_fluid = newvar(builder.arena, "third_closest_fluid", I64);
+    let density_adjustment_12 = newvar(builder.arena, "density_adjustment_12", VariableType::F64);
+    builder.add_variable(closest_fluid);
+    builder.add_variable(second_closest_fluid);
+    builder.add_variable(third_closest_fluid);
+    builder.add_variable(density_adjustment_12);
+
+    build!(builder, {
+        closest_fluid = fluid_level_input.at(closest_index1);
+        second_closest_fluid = fluid_level_input.at(closest_index2);
+        third_closest_fluid = fluid_level_input.at(closest_index3);
+        density_adjustment_12 = closest_pair_factor
+            * call_calculate_density(closest_fluid.into(), second_closest_fluid.into());
+        if ((final_density + density_adjustment_12).gt(0.0)) {
+            return BlockState::Solid.needs_fluid_tick(false);
+        }
+    });
+
+    /*
+
+    // Barrier between sites 1 and 3 (only if the 3rd site is also reasonably close).
+    AquiferSampler.FluidLevel thirdClosestFluidLevel = this.getCellFluidLevel(closestIndex3);
+    double pairFactor13 = maxDistance(closestDistanceSq1, closestDistanceSq3);
+    if (pairFactor13 > 0.0) {
+        double densityAdjustment13 = closestPairFactor * pairFactor13
+                * this.calculateDensity(pos, barrierNoiseCache, closestFluidLevel, thirdClosestFluidLevel);
+        if (density + densityAdjustment13 > 0.0) {
+            this.needsFluidTick = false;
+            return null;
+        }
+    } */
+
+    let pair_factor_13 = newvar(builder.arena, "pair_factor_13", F64);
+    let density_adjustment_13 = newvar(builder.arena, "density_adjustment_13", F64);
+    builder.add_variable(pair_factor_13);
+    builder.add_variable(density_adjustment_13);
+
+    build!(builder, {
+        pair_factor_13 = max_distance(closest_distance_sq1, closest_distance_sq3);
+        if (pair_factor_13.gt(0.0)) {
+            density_adjustment_13 = closest_pair_factor
+                * pair_factor_13
+                * call_calculate_density(closest_fluid.into(), third_closest_fluid.into());
+            if ((final_density + density_adjustment_13).gt(0.0)) {
+                return BlockState::Solid.needs_fluid_tick(false);
+            }
+        }
+    });
+
+    /*
+    // Barrier between sites 2 and 3.
+    double pairFactor23 = maxDistance(closestDistanceSq2, closestDistanceSq3);
+    if (pairFactor23 > 0.0) {
+        double densityAdjustment23 = closestPairFactor * pairFactor23
+                * this.calculateDensity(pos, barrierNoiseCache, secondClosestFluidLevel, thirdClosestFluidLevel);
+        if (density + densityAdjustment23 > 0.0) {
+            this.needsFluidTick = false;
+            return null;
+        }
+    }
+    */
+
+    let pair_factor_23 = newvar(builder.arena, "pair_factor_23", F64);
+    let density_adjustment_23 = newvar(builder.arena, "density_adjustment_23", F64);
+    builder.add_variable(pair_factor_23);
+    builder.add_variable(density_adjustment_23);
+
+    build!(builder, {
+        pair_factor_23 = max_distance(closest_distance_sq2, closest_distance_sq3);
+        if (pair_factor_23.gt(0.0)) {
+            density_adjustment_23 = closest_pair_factor
+                * pair_factor_23
+                * call_calculate_density(second_closest_fluid.into(), third_closest_fluid.into());
+            if ((final_density + density_adjustment_23).gt(0.0)) {
+                return BlockState::Solid.needs_fluid_tick(false);
+            }
+        }
+    });
+
+    /*
+    // Step 6: no barrier was placed, so this block is fluid. Decide whether it needs a fluid tick:
+    // yes if it's next to a differing fluid level (sites 1/2, 2/3 or 1/3 differ and are close)...
+    boolean fluidLevels12Differ = !closestFluidLevel.equals(secondClosestFluidLevel);
+    boolean fluidLevels23DifferAndClose = pairFactor23 >= NEEDS_FLUID_TICK_DISTANCE_THRESHOLD
+            && !secondClosestFluidLevel.equals(thirdClosestFluidLevel);
+    boolean fluidLevels13DifferAndClose = pairFactor13 >= NEEDS_FLUID_TICK_DISTANCE_THRESHOLD
+            && !closestFluidLevel.equals(thirdClosestFluidLevel);
+    if (!fluidLevels12Differ && !fluidLevels23DifferAndClose && !fluidLevels13DifferAndClose) {
+        // ...or, as a last check, if the 4th-closest site is close and has a different fluid level.
+        this.needsFluidTick = pairFactor13 >= NEEDS_FLUID_TICK_DISTANCE_THRESHOLD
+                && maxDistance(closestDistanceSq1, closestDistanceSq4) >= NEEDS_FLUID_TICK_DISTANCE_THRESHOLD
+                && !closestFluidLevel.equals(this.getCellFluidLevel(closestIndex4));
+    } else {
+        this.needsFluidTick = true;
+    }
+     */
+    let fourth_closest_fluid = fluid_level_input.at(closest_index4);
+    let fluid_levels_differ_12 = !closest_fluid.eq_expr(second_closest_fluid);
+    let fluid_levels_differ_23_and_close = pair_factor_23
+        .ge(NEEDS_FLUID_TICK_DISTANCE_THRESHOLD)
+        .and(!second_closest_fluid.eq_expr(third_closest_fluid));
+    let fluid_levels_differ_13_and_close = pair_factor_13
+        .ge(NEEDS_FLUID_TICK_DISTANCE_THRESHOLD)
+        .and(!closest_fluid.eq_expr(third_closest_fluid));
+    let fluid_levels_differ_14_and_close = pair_factor_13
+        .ge(NEEDS_FLUID_TICK_DISTANCE_THRESHOLD)
+        .and(
+            max_distance(closest_distance_sq1, closest_distance_sq4)
+                .ge(NEEDS_FLUID_TICK_DISTANCE_THRESHOLD),
+        )
+        .and(!closest_fluid.eq_expr(fourth_closest_fluid));
+
+    build!(builder, {
+        needs_fluid_tick = fluid_levels_differ_12
+            .or(fluid_levels_differ_23_and_close)
+            .or(fluid_levels_differ_13_and_close)
+            .or(fluid_levels_differ_14_and_close);
+    });
+
+    builder.add_variable(needs_fluid_tick);
+}
+
 fn generate_aquifer_calculate_density<'a, 'm>(
     builder: &mut DensityBuilder<'a, 'm>,
 ) -> FunctionRef<'m> {
     let rpos3 = newvar(builder.arena, "rpos3", VariableType::Vec3);
+    let fluid_1 = newvar(builder.arena, "fluid_1", VariableType::I64);
+    let fluid_2 = newvar(builder.arena, "fluid_2", VariableType::I64);
+    let barrier = newvar(builder.arena, "barrier", VariableType::F64);
+    let y = newvar(builder.arena, "y", VariableType::I32);
+
     let block_state_1 = newvar(builder.arena, "block_state_1", VariableType::I32);
     let block_state_2 = newvar(builder.arena, "block_state_2", VariableType::I32);
     let fluid_level_1 = newvar(builder.arena, "fluid_level_1", VariableType::I32);
     let fluid_level_2 = newvar(builder.arena, "fluid_level_2", VariableType::I32);
-    let barrier = newvar(builder.arena, "barrier", VariableType::F64);
-    let y = newvar(builder.arena, "y", VariableType::I32);
+
     /*
     int i = pos.blockY();
     BlockState blockState = fluidLevel.getBlockState(i);
@@ -1260,6 +1489,10 @@ fn generate_aquifer_calculate_density<'a, 'm>(
     */
     let mut body = body!(builder, {
         y = rpos3.field("y", F64).cast(I32);
+        fluid_level_1 = get_fluid_level_from_packed(fluid_1);
+        fluid_level_2 = get_fluid_level_from_packed(fluid_2);
+        block_state_1 = get_block_state_from_packed(fluid_1, y);
+        block_state_2 = get_block_state_from_packed(fluid_2, y);
     });
     /* ((blockState.isOf(Blocks.LAVA) && blockState2.isOf(Blocks.WATER)) || (blockState.isOf(Blocks.WATER) && blockState2.isOf(Blocks.LAVA)))
     if ((!blockState.isOf(Blocks.LAVA) || !blockState2.isOf(Blocks.WATER)) && (!blockState.isOf(Blocks.WATER) || !blockState2.isOf(Blocks.LAVA))) {
@@ -1395,16 +1628,13 @@ fn generate_aquifer_calculate_density<'a, 'm>(
     let function = Interned::new(builder.arena.alloc(Function {
         canonical_name: Some("aquifer_calculate_density".into()),
         body,
-        parameters: vec![
-            rpos3,
+        parameters: vec![rpos3, barrier, fluid_1, fluid_2],
+        variables: vec![
+            y,
             block_state_1,
             fluid_level_1,
             block_state_2,
             fluid_level_2,
-            barrier,
-        ],
-        variables: vec![
-            y,
             pressure,
             shifted_distance,
             divider,

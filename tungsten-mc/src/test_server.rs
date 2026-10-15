@@ -1,7 +1,7 @@
 use std::io::{BufRead, BufReader, Write};
 use std::mem::MaybeUninit;
 use std::net::TcpListener;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 use crate::orchestration::HostConsts;
 
@@ -202,7 +202,7 @@ fn run_single_density(
     }
 }
 
-static mut PRELIMINARY_SURFACE: Mutex<Option<PreliminarySurfaceCache>> = Mutex::new(None);
+static PRELIMINARY_SURFACE: OnceLock<PreliminarySurfaceCache> = OnceLock::new();
 
 fn get_estimated_surface_height(seed: i64, biome_x: i32, biome_z: i32) -> i32 {
     // get the preliminary surface height from the cache
@@ -221,14 +221,15 @@ fn get_estimated_surface_height(seed: i64, biome_x: i32, biome_z: i32) -> i32 {
     //     }
     // }
 
-    unsafe {
-        let mut cache = PRELIMINARY_SURFACE.lock().unwrap();
-        if cache.is_none() {
-            let orchestration = orchestration::Orchestration::new(seed);
-            *cache = Some(PreliminarySurfaceCache::new(orchestration));
-        }
-        cache.as_mut().unwrap().get(biome_x, biome_z)
-    }
+    // let mut cache = PRELIMINARY_SURFACE.lock().unwrap();
+    // if cache.is_none() {
+    //     let orchestration = orchestration::Orchestration::new(seed);
+    //     *cache = Some(PreliminarySurfaceCache::new(orchestration));
+    // }
+
+    let cache = PRELIMINARY_SURFACE
+        .get_or_init(|| PreliminarySurfaceCache::new(orchestration::Orchestration::new(seed)));
+    cache.get(biome_x, biome_z)
 }
 
 const VALID_DENSITY_NAMES: &[&str] = &[
@@ -729,8 +730,10 @@ fn dispatch(line: &str) -> String {
                 Ok(v) => v,
                 Err(e) => return format!("ERR arg 3 (oz) parse error: {e}"),
             };
-            let result = get_estimated_surface_height(seed, (ox as i32) >> 2, (oz as i32) >> 2);
-            format!("OK {}", result)
+            let result = get_estimated_surface_height(seed, (ox as i32), (oz as i32));
+            let e = format!("OK {}", result);
+            println!("{}", e);
+            e
         }
 
         // ── Xoroshiro128++ commands ───────────────────────────────────────────

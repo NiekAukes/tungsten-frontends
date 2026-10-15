@@ -226,6 +226,7 @@ pub enum DensityType<'m> {
         floodedness: Density<'m>,
         spread: Density<'m>,
         fluid_type: Density<'m>,
+        barrier: Density<'m>,
     },
 
     // WaterTable {
@@ -449,6 +450,7 @@ impl Hash for DensityType<'_> {
                 floodedness,
                 spread,
                 fluid_type,
+                barrier,
             } => {
                 30.hash(state);
                 final_density.hash(state);
@@ -457,6 +459,7 @@ impl Hash for DensityType<'_> {
                 floodedness.hash(state);
                 spread.hash(state);
                 fluid_type.hash(state);
+                barrier.hash(state);
             }
 
             DensityType::Custom(name) => {
@@ -538,6 +541,17 @@ impl<'m> DensitySource<'m> {
         match self {
             DensitySource::MultiSamplingDensity { density, .. } => density,
             DensitySource::SingleSamplingDensity { density } => density,
+        }
+    }
+}
+
+impl<'m> DensityType<'m> {
+    pub fn strip_named_density(&'m self) -> Density<'m> {
+        match self {
+            DensityType::NamedDensityReference { name: _, argument } => {
+                argument.strip_named_density()
+            }
+            _ => self,
         }
     }
 }

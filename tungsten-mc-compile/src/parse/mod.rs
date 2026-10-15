@@ -433,6 +433,7 @@ impl<'m> MinecraftData<'m> {
                 floodedness: fluid_level_floodedness,
                 spread: fluid_level_spread,
                 fluid_type: lava,
+                barrier,
             }),
         });
 
@@ -584,11 +585,11 @@ impl<'m> NoiseRouter<'m> {
         vec![
             self.final_density_with_beard,
             self.final_density,
-            // self.vein_gap,
-            // self.vein_ridged,
-            // self.vein_toggle,
-            // self.preliminary_surface_level,
-            self.aquifer_sampler,
+            self.vein_gap,
+            self.vein_ridged,
+            self.vein_toggle,
+            self.preliminary_surface_level,
+            // self.aquifer_sampler,
         ]
     }
 }

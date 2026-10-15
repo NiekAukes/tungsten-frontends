@@ -74,8 +74,8 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 i = lower_bound;
             } else {
                 j = i / cell_height;
+                i = lower_bound;
                 while (j.ge(lower_bound / cell_height)) {
-                    // EMBED
                     let sample = Expression::DensityVariable(
                         density_di,
                         Some(
@@ -90,7 +90,6 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                             .into(),
                         ),
                     );
-                    //end of EMBED
 
                     if (sample.gt(0.0)) {
                         i = j * cell_height;

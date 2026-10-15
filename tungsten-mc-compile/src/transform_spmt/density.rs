@@ -727,7 +727,10 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             }
             DensityType::Cache2d { argument } => {
                 // If the argument is a flat cache, we want to ignore the cache2d and just lower the flat cache directly
-                if matches!(*argument, DensityType::FlatCache { .. }) {
+                if matches!(
+                    *argument.strip_named_density(),
+                    DensityType::FlatCache { .. }
+                ) {
                     return self.lower_density(argument);
                 }
 

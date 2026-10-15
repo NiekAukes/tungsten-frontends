@@ -201,6 +201,7 @@ impl<'m> DensityType<'m> {
                 floodedness,
                 spread,
                 fluid_type,
+                barrier,
             } => {
                 writeln!(f, "{}Aquifer:", pad(indent))?;
                 writeln!(f, "{}FinalDensity:", pad(indent + 2))?;
@@ -214,7 +215,9 @@ impl<'m> DensityType<'m> {
                 writeln!(f, "{}Spread:", pad(indent + 2))?;
                 spread.fmt_with_indent(f, indent + 4)?;
                 writeln!(f, "{}FluidType:", pad(indent + 2))?;
-                fluid_type.fmt_with_indent(f, indent + 4)
+                fluid_type.fmt_with_indent(f, indent + 4)?;
+                writeln!(f, "{}Barrier:", pad(indent + 2))?;
+                barrier.fmt_with_indent(f, indent + 4)
             }
             DensityType::Custom(name) => {
                 writeln!(f, "{}Custom(name={})", pad(indent), name)

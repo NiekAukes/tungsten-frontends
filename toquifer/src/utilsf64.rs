@@ -1105,6 +1105,15 @@ pub fn get_block_state_from_packed(packed: i64, y_level: i32) -> i32 {
     block_state(block_state_var, fluid_level, y_level)
 }
 
+pub fn get_fluid_level_from_packed(packed: i64) -> i32 {
+    (packed as u64 >> 32) as i32
+}
+
+pub fn get_block_from_packed(packed: i64) -> i32 {
+    let block_state_var = (packed & 0xFFFFFFFF) as i32;
+    block_state_var
+}
+
 pub fn block_state(block_state: i32, fluid_level: i32, y_level: i32) -> i32 {
     if y_level < fluid_level {
         block_state
