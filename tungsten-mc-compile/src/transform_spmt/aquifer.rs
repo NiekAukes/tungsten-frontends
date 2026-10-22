@@ -1,8 +1,5 @@
-use std::cell;
-
 use tungsten_wg::extern_fns;
 use tungsten_wg::spmt::builder::floor;
-use tungsten_wg::spmt::builder::min;
 use tungsten_wg::spmt::DensityFunction;
 use tungsten_wg::spmt::DensityFunctionRef;
 use tungsten_wg::spmt::DensityInput;
@@ -16,15 +13,20 @@ use tungsten_wg::spmt::VariableType::Vec3;
 use tungsten_wg::spmt::VariableType::F64;
 use tungsten_wg::spmt::VariableType::I32;
 use tungsten_wg::spmt::VariableType::I64;
+use tungsten_wg::vec3;
 use tungsten_wg::{body, build, spmt::Expression};
 
 use crate::parse::model::DensityType;
 use crate::parse::model::DensityType::Aquifer;
 use crate::transform_spmt::newvar;
 use crate::transform_spmt::spline::old;
+use crate::transform_spmt::InlineMode;
+use crate::transform_spmt::ScalingSet;
 use crate::{parse::model::Density, transform_spmt::density::DensityBuilder};
 use tungsten_wg::spmt::builder::SPMTBuilder;
 use tungsten_wg::spmt::Statement;
+
+const DUMMY_DENSITIES: bool = false;
 
 impl<'a, 'm> DensityBuilder<'a, 'm> {
     pub fn aquifer(&mut self, density: Density<'a>) -> Expression<'m> {
@@ -133,16 +135,19 @@ pub fn generate_general_aquifer_sampler<'a, 'm>(
         spread,
         fluid_type,
         barrier,
-    } = density
+    } = *density
     else {
         panic!("Expected Aquifer density type");
     };
 
     // lower final_density first
-    // let final_density =
-    //     builder.lower_density_input(final_density, Some("FinalDensity".into()), None);
-    // let final_density_expr = Expression::DensityVariable(final_density, None);
-    let final_density_expr = Expression::from(0.0);
+    let final_density_expr = if DUMMY_DENSITIES {
+        Expression::from(0.0)
+    } else {
+        let final_density =
+            builder.lower_density_input(final_density, Some("FinalDensity".into()), None);
+        Expression::DensityVariable(final_density, None)
+    };
     let final_density_var = newvar(builder.arena, "final_density", F64);
     let mut variables = vec![final_density_var];
 
@@ -475,6 +480,8 @@ pub fn generate_general_aquifer_sampler<'a, 'm>(
         fluid_type,
         fluid_level,
         fluid_block,
+        erosion,
+        depth,
     );
 
     let fluid_level_input = DensityInput {
@@ -738,6 +745,8 @@ fn generate_water_levels<'a, 'm>(
     fluid_type_noise: Density<'a>,
     fluid_level_func: FunctionRef<'m>,
     fluid_block_func: FunctionRef<'m>,
+    erosion: Density<'a>,
+    depth: Density<'a>,
     // fluid_level: impl Fn(Expression<'m>) -> Expression<'m>,
     // fluid_type: impl Fn(Expression<'m>) -> Expression<'m>,
 ) -> (DensityFunctionRef<'m>, (i32, i32, i32)) {
@@ -817,13 +826,6 @@ fn generate_water_levels<'a, 'm>(
         "estimate_surface_height",
         VariableType::Extern("EstimatedSurfaceHeight"),
     );
-    let erosion_cache = newvar(
-        builder.arena,
-        "erosion_cache",
-        VariableType::Extern("Erosion"),
-    );
-
-    let depth_cache = newvar(builder.arena, "depth_cache", VariableType::Extern("Depth"));
 
     let fluid_level_var = newvar(builder.arena, "fluid_level_var", VariableType::I64);
     let fluid_type_var = newvar(builder.arena, "fluid_type_var", VariableType::I64);
@@ -847,10 +849,10 @@ fn generate_water_levels<'a, 'm>(
         0, 0, -2, -1, -1, -1, 0, -1, 1, -1, -3, 0, -2, 0, -1, 0, 1, 0, -2, 1, -1, 1, 0, 1, 1, 1,
     ];
     let c_value_len = c_value_vec.len() as i32;
-    // builder.add_constant(
-    //     c_surface_sample_chunk_offsets,
-    //     const_literal_array(c_value_vec),
-    // );
+    builder.add_constant(
+        c_surface_sample_chunk_offsets,
+        const_literal_array(c_value_vec),
+    );
 
     let i = newvar(builder.arena, "i", VariableType::I32);
     let sample_x = newvar(builder.arena, "sample_x", VariableType::I32);
@@ -864,8 +866,6 @@ fn generate_water_levels<'a, 'm>(
 
     variables.extend(vec![
         esh_cache,
-        erosion_cache,
-        depth_cache,
         fluid_level_var,
         fluid_type_var,
         lowest_surface_y,
@@ -883,7 +883,7 @@ fn generate_water_levels<'a, 'm>(
         is_near_surface,
     ]);
 
-    let mut body = body!(builder, {
+    build!(builder, {
         cs_var = Expression::DensityVariable(closest_sites.clone(), None);
 
         x = unpack_long_x(cs_var);
@@ -994,7 +994,8 @@ fn generate_water_levels<'a, 'm>(
     };
 
     builder.switch_function(floodedness_func);
-    builder.always_inline_non_2d = true;
+    // builder.always_inline_non_2d = true;
+    builder.builder_state.as_mut().unwrap().inline_mode = InlineMode::AlwaysUnless2D;
     let e = builder.lower_density(fluid_level_floodedness);
     let floodedness_func = builder.finish_and_continue(e, None);
 
@@ -1021,8 +1022,9 @@ fn generate_water_levels<'a, 'm>(
     builder.switch_function(fluid_type_func);
     let e = builder.lower_density(fluid_type_noise);
     let fluid_type_func = builder.finish_and_continue(e, None);
+    builder.builder_state.as_mut().unwrap().inline_mode = InlineMode::Default;
 
-    builder.always_inline_non_2d = false;
+    //builder.always_inline_non_2d = false;
     /*
     // Deep enough underground: decide the level (and fluid type) using noise.
     DensityFunction.UnblendedNoisePos noisePos = new DensityFunction.UnblendedNoisePos(blockX, blockY, blockZ);
@@ -1036,25 +1038,73 @@ fn generate_water_levels<'a, 'm>(
     let surface_proximity = newvar(builder.arena, "surface_proximity", VariableType::F64);
     let floodedness_sample = newvar(builder.arena, "floodedness_sample", VariableType::F64);
 
+    let relative_position = newvar(builder.arena, "relative_pos", VariableType::Vec3);
+
     variables.extend(vec![
         noise_based_fluid_score,
         default_fluid_score,
         fluid_y,
         surface_proximity,
         floodedness_sample,
+        relative_position,
     ]);
+    let rpos3 = builder.rpos3;
+    build!(builder, {
+        rpos3 = Expression::Construct {
+            t: Vec3,
+            args: vec![x.cast(F64), y.cast(F64), z.cast(F64)],
+        };
+        relative_position = rpos3 - origin - vec3!(-16.0, 0.0, -16.0);
 
-    body.extend(body!(builder, {
-        /*
-        if (VanillaBiomeParameters.inDeepDarkParameters(this.erosionDensityFunction, this.depthDensityFunction, noisePos)) {
-            // Deep Dark: both scores are negative, so aquifers here are always empty.
-            noiseBasedFluidScore = -1.0;
-            defaultFluidScore = -1.0;
-        } else {
-         */
+        p = Expression::Construct {
+            t: VariableType::Pos3,
+            args: vec![
+                relative_position.field("x", F64).cast(I32),
+                relative_position.field("y", F64).cast(I32),
+                relative_position.field("z", F64).cast(I32),
+            ],
+        };
+    });
+    let (e, d) = if DUMMY_DENSITIES {
+        (Expression::Double(0.0), Expression::Double(0.0))
+    } else {
+        builder.neutral_index_override = true;
+        let bs = builder.builder_state.as_mut().unwrap();
+        bs.rpos_offset = (-16.0, 0.0, -16.0);
+        let original_working_set = bs.working_set.clone();
+        let original_flat_cache_set = bs.flatcache_set.clone();
+        bs.working_set = ScalingSet {
+            dimensions: (48, 384, 48),
+            scaled_position: (1.0, 1.0, 1.0),
+            scaled_origin: (1.0, 1.0, 1.0),
+        };
+        bs.flatcache_set = ScalingSet {
+            dimensions: (12, 1, 12),
+            scaled_position: (4.0, 1.0, 4.0),
+            scaled_origin: (1.0, 1.0, 1.0),
+        };
+
+        let e = builder.lower_density(erosion);
+        let d = builder.lower_density(depth);
+
+        let bs = builder.builder_state.as_mut().unwrap();
+        bs.working_set = original_working_set;
+        bs.flatcache_set = original_flat_cache_set;
+        builder.neutral_index_override = false;
+        (e, d)
+    };
+
+    /*
+    if (VanillaBiomeParameters.inDeepDarkParameters(this.erosionDensityFunction, this.depthDensityFunction, noisePos)) {
+        // Deep Dark: both scores are negative, so aquifers here are always empty.
+        noiseBasedFluidScore = -1.0;
+        defaultFluidScore = -1.0;
+    } else {
+     */
+    build!(builder, {
         surface_proximity = 0.0;
-        let e = erosion(erosion_cache, x, y, z);
-        let d = depth(depth_cache, x, y, z);
+        // let e = erosion(erosion_cache, x, y, z);
+        // let d = depth(depth_cache, x, y, z);
 
         if (e.lt(-0.225).and(d.gt(0.9))) {
             // deep dark
@@ -1168,36 +1218,40 @@ fn generate_water_levels<'a, 'm>(
         return new AquiferSampler.FluidLevel(fluidY, **EXTRACTED**);
         */
         return encode_fluid_level(fluid_y, fluid_type_var);
-    }));
+    });
 
     // we need the built density function to get permutation table inputs
-    let (a, _, mut bs) = builder.finish(0.0.into());
+    let (mut df, mut helpers, mut bs) = builder.finish_raw(None);
 
-    let df = DensityFunction {
-        canonical_name: Some("water_levels".into()),
-        density_inputs: vec![closest_sites],
-        permutation_table_inputs: a.permutation_table_inputs,
-        host_inputs: vec![
-            HostInput::Static(esh_cache),
-            HostInput::Static(erosion_cache),
-            HostInput::Static(depth_cache),
-        ],
-        variables: variables,
-        helper_functions: vec![
-            floodedness_func,
-            spread_func,
-            fluid_type_func,
-            fluid_level_func,
-            fluid_block_func,
-        ],
-        constants: vec![(
-            c_surface_sample_chunk_offsets,
-            const_literal_array(c_value_vec),
-        )],
-        source_hash: 0,
-        return_type: VariableType::I64,
-        body: body,
-    };
+    helpers.extend(vec![
+        floodedness_func,
+        spread_func,
+        fluid_type_func,
+        fluid_level_func,
+        fluid_block_func,
+    ]);
+
+    // let df = DensityFunction {
+    //     canonical_name: Some("water_levels".into()),
+    //     density_inputs: vec![closest_sites],
+    //     permutation_table_inputs: a.permutation_table_inputs,
+    //     host_inputs: vec![HostInput::Static(esh_cache)],
+    //     variables: variables,
+    //     helper_functions: helpers,
+    //     constants: vec![(
+    //         c_surface_sample_chunk_offsets,
+    //         const_literal_array(c_value_vec),
+    //     )],
+    //     source_hash: a.source_hash,
+    //     return_type: VariableType::I64,
+    //     body: a.body,
+    // };
+    df.canonical_name = Some("water_levels".into());
+    df.density_inputs.push(closest_sites);
+    df.host_inputs.push(HostInput::Static(esh_cache));
+    df.variables.extend(variables);
+    df.helper_functions.extend(helpers);
+    df.return_type = VariableType::I64;
 
     let dfr = Interned::new(master_builder.arena.alloc(df));
 
@@ -1293,7 +1347,7 @@ fn generate_special_aquifer_sampler<'a, 'm>(
     MutableDouble barrierNoiseCache = new MutableDouble(Double.NaN);
     */
     let barrier_noise = newvar(builder.arena, "barrier_noise", VariableType::F64);
-    builder.always_inline_non_2d = true;
+    builder.builder_state.as_mut().unwrap().inline_mode = InlineMode::AlwaysUnless2D;
     builder.add_variable(barrier_noise);
 
     let barrier_func = Function {
@@ -1307,7 +1361,7 @@ fn generate_special_aquifer_sampler<'a, 'm>(
     builder.switch_function(barrier_func);
     let e = builder.lower_density(barrier);
     let barrier_func = builder.finish_and_continue(e, None);
-    builder.always_inline_non_2d = false;
+    builder.builder_state.as_mut().unwrap().inline_mode = InlineMode::Default;
 
     let rpos_expr: Expression<'m> = builder.rpos3.into();
 

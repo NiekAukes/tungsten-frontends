@@ -1075,28 +1075,22 @@ pub fn packed_pos(x: i32, y: i32, z: i32) -> i64 {
 }
 
 pub fn unpack_long_x(packed: i64) -> i32 {
-    ((packed >> 38) & 0x3FFFFFF) as i32
+    (packed >> 38) as i32
 }
 
 pub fn unpack_long_y(packed: i64) -> i32 {
-    (packed & 0xFFF) as i32
+    ((packed << 52) >> 52) as i32
 }
 
 pub fn unpack_long_z(packed: i64) -> i32 {
-    ((packed >> 12) & 0x3FFFFFF) as i32
+    ((packed << 26) >> 38) as i32
 }
 
 #[derive(Clone, Copy)]
 pub struct EstimatedSurfaceHeight;
 
-#[derive(Clone, Copy)]
-pub struct Erosion;
-
-#[derive(Clone, Copy)]
-pub struct Depth;
-
 pub fn esh(cache: EstimatedSurfaceHeight, x: i32, z: i32) -> i32 {
-    0 // TODO
+    56 // TODO
 }
 
 pub fn get_block_state_from_packed(packed: i64, y_level: i32) -> i32 {
@@ -1131,12 +1125,6 @@ pub fn max_distance(i: i32, a: i32) -> f64 {
     1.0 - (a - i) as f64 / 25.0
 }
 
-pub fn erosion(cache: Erosion, x: i32, y: i32, z: i32) -> f64 {
-    0.0 // TODO
-}
-pub fn depth(cache: Depth, x: i32, y: i32, z: i32) -> f64 {
-    0.0 // TODO
-}
 pub fn aquifer_index(
     start_x: i32,
     start_y: i32,
@@ -1150,8 +1138,8 @@ pub fn aquifer_index(
 ) -> i32 {
     let x0 = start_x;
     let z0 = start_z;
-    let sx = end_x - start_x;
-    let sz = end_z - start_z;
+    let sx = end_x - start_x + 1;
+    let sz = end_z - start_z + 1;
 
     (x - x0) + (y - start_y) * sx + (z - z0) * sx * sy
 }

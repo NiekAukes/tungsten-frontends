@@ -1,15 +1,20 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Add,
+};
 
 use crate::{
     parse::model::{Density, DensityType, NoiseGeneratorSettings, NoiseSettings, NormalNoise},
     transform_spmt::{
         anonvar, newvar,
         noise::{lower_normal_noise, lower_old_blended_noise},
-        prefixvar, BuilderState,
+        prefixvar, BuilderState, InlineMode,
     },
 };
 use tungsten_wg::{
+    body,
     orchestrate::Scale,
+    pos3,
     spmt::{
         builder::SPMTBuilder,
         model::{
@@ -17,6 +22,7 @@ use tungsten_wg::{
             Function, FunctionRef, Name, PermutationTableInput, Statement, Var, Variable,
             VariableType,
         },
+        VariableType::{Vec3, F64},
     },
 };
 
@@ -25,6 +31,7 @@ pub struct NormalNoiseKey<'a> {
     noise: NormalNoise<'a>,
     name: String,
     scale: Scale,
+    offset: Scale,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -33,12 +40,18 @@ pub struct DensityKey<'a> {
     pub dimensions: (i32, i32, i32),
     pub scaled_origin: Scale,
     pub scaled_position: Scale,
+    pub offset: Scale,
 }
 
 pub struct BuilderSettings {
     pub enable_interpolation: bool,
     pub new_shader_named_densities: bool,
     pub use_new_spline: bool,
+    /// Enables proper flatcaches that mimick minecraft's behavior.
+    /// Currently unfinished, and will not work as intended.
+    /// Likely will never be implemented due to the insanity of accurately mimicking the behavior (including bugs).
+    /// Not using this is perfectly sound, as it just implements flat caches without the bugs.
+    pub proper_flatcache: bool,
 }
 
 impl Default for BuilderSettings {
@@ -47,6 +60,7 @@ impl Default for BuilderSettings {
             enable_interpolation: true,
             new_shader_named_densities: false,
             use_new_spline: true,
+            proper_flatcache: false,
         }
     }
 }
@@ -71,8 +85,9 @@ pub struct DensityBuilder<'a, 'm> {
     pub(crate) origin_scale: Var<'m>,
     pub(crate) position_scale: Var<'m>,
 
-    /// A toggle indicating whether to always inline non-2d functions
-    pub(crate) always_inline_non_2d: bool,
+    // ovverrides the neutral index if set to true
+    // so index(p) => index_pos(pos)
+    pub(crate) neutral_index_override: bool,
 
     pub(crate) noise_generator_settings: &'a NoiseGeneratorSettings<'a>,
 }
@@ -83,6 +98,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         state: BuilderState<'a, 'm>,
         noise_generator_settings: &'a NoiseGeneratorSettings<'a>,
     ) -> Self {
+        let offset = state.rpos_offset;
         let mut s = Self {
             density_function: DensityFunction {
                 body: Vec::new(),
@@ -110,8 +126,8 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             origin: newvar(arena, "origin", VariableType::Vec3),
             origin_scale: newvar(arena, "origin_scale", VariableType::Vec3),
             position_scale: newvar(arena, "position_scale", VariableType::Vec3),
+            neutral_index_override: false,
             noise_generator_settings,
-            always_inline_non_2d: false,
         };
 
         s.add_variable(s.rpos3.clone());
@@ -126,6 +142,16 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 s.position_scale.clone(),
             ),
         });
+        if offset != (0.0, 0.0, 0.0) {
+            s.add_statement(Statement::Assign {
+                target: s.rpos3.clone(),
+                value: s.rpos3.clone()
+                    + Expression::Construct {
+                        t: VariableType::Vec3,
+                        args: vec![offset.0.into(), offset.1.into(), offset.2.into()],
+                    },
+            });
+        }
         s
     }
     pub fn new_named(
@@ -145,8 +171,19 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
     }
 
     pub fn finish(
-        mut self,
+        self,
         ret: Expression<'m>,
+    ) -> (
+        DensityFunction<'m>,
+        Vec<FunctionRef<'m>>,
+        BuilderState<'a, 'm>,
+    ) {
+        self.finish_raw(Some(ret))
+    }
+
+    pub fn finish_raw(
+        mut self,
+        ret: Option<Expression<'m>>,
     ) -> (
         DensityFunction<'m>,
         Vec<FunctionRef<'m>>,
@@ -157,7 +194,9 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
 
         let mut function = self.density_function;
         function.helper_functions = self.helper_functions.clone();
-        function.add_statement(Statement::Return(ret));
+        if let Some(ret) = ret {
+            function.add_statement(Statement::Return(ret));
+        }
 
         // if the function name is None, generate a unique name based on the address of the function
         if function.canonical_name.is_none() {
@@ -207,11 +246,45 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         self.density_function.constants.push((variable, value));
     }
 
+    pub fn neutral_indexing(&self) -> Option<Box<Expression<'m>>> {
+        if self.neutral_index_override {
+            let dimensions = self.builder_state.as_ref().unwrap().working_set.dimensions;
+            if dimensions.1 == 1 {
+                Some(Box::new(Expression::ExternCall {
+                    function_name: "flat_y_zero_index".into(),
+                    parameters: vec![self.p.into(), dimensions.0.into(), dimensions.2.into()],
+                    parameter_types: vec![VariableType::Pos3, VariableType::I32, VariableType::I32],
+                    return_type: F64,
+                }))
+            } else {
+                Some(Box::new(Expression::ExternCall {
+                    function_name: "as_index".into(),
+                    parameters: vec![
+                        self.p.into(),
+                        dimensions.0.into(),
+                        dimensions.1.into(),
+                        dimensions.2.into(),
+                    ],
+                    parameter_types: vec![
+                        VariableType::Pos3,
+                        VariableType::I32,
+                        VariableType::I32,
+                        VariableType::I32,
+                    ],
+                    return_type: F64,
+                }))
+            }
+        } else {
+            None
+        }
+    }
+
     pub fn lower_noise(
         &mut self,
         density: NormalNoise<'a>,
         origin_scale: (f64, f64, f64),
         position_scale: (f64, f64, f64),
+        offset: (f64, f64, f64),
         permutation_name: &str,
         name: String,
     ) -> (FunctionRef<'m>, Vec<PermutationTableInput>) {
@@ -223,6 +296,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             name,
             origin_scale,
             position_scale,
+            offset,
             false,
         );
         let function = FunctionRef::new(self.arena.alloc(function));
@@ -236,6 +310,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         cname: String,
         origin_scale: (f64, f64, f64),
         position_scale: (f64, f64, f64),
+        offset: (f64, f64, f64),
     ) -> DensityFunctionRef<'m> {
         // lower the noise into a density function
         let (function, perm_tables) = lower_normal_noise(
@@ -245,6 +320,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             cname,
             origin_scale,
             position_scale,
+            offset,
             true,
         );
         let hash = {
@@ -349,10 +425,13 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         scaled_origin.1 *= y_scale;
         scaled_origin.2 *= z_scale;
 
+        let offset = self.builder_state.as_ref().unwrap().rpos_offset;
+
         let noise_scaled = NormalNoiseKey {
             noise,
             name: name.clone(),
             scale: Scale::new(scaled_origin.0, scaled_origin.1, scaled_origin.2),
+            offset: Scale::from(offset),
         };
         if let Some(cached) = self.noise_inputs.get(&noise_scaled) {
             let indexing = if scaled_origin.1 == 0.0 {
@@ -383,9 +462,16 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 bs.working_set.scaled_position.1 * y_scale,
                 bs.working_set.scaled_position.2 * z_scale,
             );
+            let offset = bs.rpos_offset;
             let cname = format!("{}_{}", name, bs.use_density_counter());
-            let density_function_ref =
-                self.lower_noise_as_density(noise, &name, cname, scaled_origin, scaled_position);
+            let density_function_ref = self.lower_noise_as_density(
+                noise,
+                &name,
+                cname,
+                scaled_origin,
+                scaled_position,
+                offset,
+            );
             bs.noise_cache
                 .insert(noise_scaled.clone(), density_function_ref.clone());
             density_function_ref
@@ -613,11 +699,13 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         let dimensions = bs.working_set.dimensions;
         let scaled_origin = Scale::from(bs.working_set.scaled_origin);
         let scaled_position = Scale::from(bs.working_set.scaled_position);
+        let offset = Scale::from(bs.rpos_offset);
         let key = DensityKey {
             density: *density,
             dimensions,
             scaled_origin,
             scaled_position,
+            offset,
         };
 
         let s = self.density_function_inputs.get(&key).cloned();
@@ -643,6 +731,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                         .working_set
                         .scaled_position,
                 ),
+                offset: Scale::from(self.builder_state.as_ref().unwrap().rpos_offset),
             },
             input,
         );
@@ -654,7 +743,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         }
 
         if let Some(cached) = self.get_function_cached_density_input(&density) {
-            return Expression::DensityVariable(cached, None);
+            return Expression::DensityVariable(cached, self.neutral_indexing());
         }
 
         if self.density_function.source_hash == 0 {
@@ -676,13 +765,16 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 xz_scale,
                 y_scale,
             } => {
-                if self.always_inline_non_2d && y_scale != 0.0 {
+                let inline_mode = self.builder_state.as_ref().unwrap().inline_mode;
+                if (inline_mode.non_2d() && y_scale != 0.0) || inline_mode.in_2d() {
                     // make it a normal function call
                     let working_set = &self.builder_state.as_ref().unwrap().working_set;
+                    let offset = self.builder_state.as_ref().unwrap().rpos_offset;
                     let (fref, perm_tables) = self.lower_noise(
                         noise,
                         working_set.scaled_origin,
                         working_set.scaled_position,
+                        offset,
                         name.as_str(),
                         name.clone(),
                     );
@@ -726,6 +818,13 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 }
             }
             DensityType::Cache2d { argument } => {
+                if self.builder_state.as_ref().unwrap().inline_mode
+                    == InlineMode::FlatCacheWeirdness
+                {
+                    // this is impossible to model for 2d caches...
+                    return self.lower_density(argument);
+                }
+
                 // If the argument is a flat cache, we want to ignore the cache2d and just lower the flat cache directly
                 if matches!(
                     *argument.strip_named_density(),
@@ -874,7 +973,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 }
 
                 if let Some(cached) = self.get_function_cached_density_input(&density) {
-                    return Expression::DensityVariable(cached.clone(), None);
+                    return Expression::DensityVariable(cached.clone(), self.neutral_indexing());
                 }
 
                 // get the interpolation dimensions from the builder state
@@ -996,7 +1095,24 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     return_type: VariableType::F64,
                 }
             }
+
             DensityType::FlatCache { argument } => {
+                // no need to flatcache if we've already done it
+                let already_flatcached = self.builder_state.as_ref().unwrap().already_flatcached;
+                if already_flatcached {
+                    return self.lower_density(argument);
+                }
+                self.builder_state.as_mut().unwrap().already_flatcached = true;
+
+                let offset = self.builder_state.as_ref().unwrap().rpos_offset;
+
+                // Flat caches are so fucked. It's only quantized in the current chunk, but falls back to
+                // lazy evaluation when outside, so not quantized globally.
+                // This is awful for our kind of caching strategy.
+                // this could be optimized out if exact execution is not needed.
+                let proper_flatcache = self.builder_settings.proper_flatcache;
+                let needs_inlined_path = offset != (0.0, 0.0, 0.0) && proper_flatcache;
+
                 // a caching function. It evaluates the density function only once per biome column.
                 // which is x >> 2, z >> 2. Y is ignored. The result is cached and reused for every point in the same biome column.
                 // This is used for biome-specific features like ore veins and surface structures, which only depend
@@ -1069,6 +1185,14 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 }
 
                 let mut bs = self.builder_state.take().unwrap();
+
+                // Set the relative position offset based on whether proper flatcache is enabled.
+                // If it is, use (0,0,0), otherwise use the provided offset.
+                bs.rpos_offset = if proper_flatcache {
+                    (0.0, 0.0, 0.0)
+                } else {
+                    offset
+                };
                 let old_working_set = bs.working_set;
                 let flat_set = bs
                     .flatcache_set
@@ -1082,23 +1206,64 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 self.add_density_input_to_cache(density, input.clone());
 
                 let mut bs = self.builder_state.take().unwrap();
+                bs.rpos_offset = offset;
+
+                let pos3: Expression<'m>;
+                // Flat-cache fuckery begins here. If there is an offset, anything outside the current chunk should be inlined instead
+                let inlined_expr = if needs_inlined_path {
+                    // let old_density_body = self.density_function.body;
+                    let mut swapped = vec![];
+                    std::mem::swap(&mut swapped, &mut self.density_function.body);
+
+                    // let mut special_working_set = old_working_set;
+                    // special_working_set.dimensions.1 = 1;
+                    // special_working_set.scaled_origin.1 = 0.0;
+                    // special_working_set.scaled_position.1 = 0.0;
+                    // bs.working_set = special_working_set;
+                    bs.working_set = old_working_set; // cache is skipped for the inlined path
+                    let old_inline_mode = bs.inline_mode;
+                    bs.inline_mode = InlineMode::FlatCacheWeirdness;
+                    self.builder_state = Some(bs);
+                    let e = self.lower_density(argument);
+
+                    std::mem::swap(&mut swapped, &mut self.density_function.body);
+
+                    bs = self.builder_state.take().unwrap();
+                    bs.inline_mode = old_inline_mode;
+
+                    // the pos3 is offset by the actual offset
+                    assert!(offset.0.fract() == 0.0);
+                    assert!(offset.1.fract() == 0.0);
+                    assert!(offset.2.fract() == 0.0);
+                    pos3 = Expression::from(self.p).add(pos3!(
+                        offset.0 as i32,
+                        offset.1 as i32,
+                        offset.2 as i32
+                    ));
+                    Some((e, swapped))
+                } else {
+                    pos3 = Expression::from(self.p);
+                    None
+                };
+
+                bs.already_flatcached = false;
                 bs.working_set = old_working_set;
                 self.builder_state = Some(bs);
 
                 // return the density variable for the input, with an index of (x >> 2, z >> 2)
                 // whether to use biome column index or identity depends on the working dimensions. If the xz dimensions are 1, then we are already effectively indexed by biome column, so we can just return the cached value directly. Otherwise, we need to index it by biome column.
-                if old_working_set.dimensions == flat_set.dimensions {
-                    return Expression::DensityVariable(input, None);
+                let normal_expr = if old_working_set.dimensions == flat_set.dimensions {
+                    Expression::DensityVariable(input, self.neutral_indexing())
                 } else if old_working_set.dimensions.0 == flat_set.dimensions.0
                     && old_working_set.dimensions.2 == flat_set.dimensions.2
                 {
                     // flat_y_zero_index
-                    return Expression::DensityVariable(
+                    Expression::DensityVariable(
                         input,
                         Some(Box::new(Expression::ExternCall {
                             function_name: "flat_y_zero_index".into(),
                             parameters: vec![
-                                Expression::Variable(self.p.clone()),
+                                pos3,
                                 Expression::Int(flat_set.dimensions.0),
                                 Expression::Int(flat_set.dimensions.2),
                             ],
@@ -1109,14 +1274,14 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                             ],
                             return_type: VariableType::I32,
                         })),
-                    );
+                    )
                 } else {
-                    return Expression::DensityVariable(
+                    Expression::DensityVariable(
                         input,
                         Some(Box::new(Expression::ExternCall {
                             function_name: "biome_column_index".into(),
                             parameters: vec![
-                                Expression::Variable(self.p.clone()),
+                                pos3,
                                 flat_set.dimensions.0.into(),
                                 flat_set.dimensions.2.into(),
                             ],
@@ -1127,7 +1292,48 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                             ],
                             return_type: VariableType::I32,
                         })),
-                    );
+                    )
+                };
+
+                if needs_inlined_path {
+                    // build an if statement, if rpos is within (16, *, 16) of the origin, do the normal flat cache, else do the inlined version
+                    let v = newvar(self.arena, "origin_offset", Vec3);
+                    let r = newvar(self.arena, "r", F64);
+                    self.add_statement(Statement::Assign {
+                        target: v,
+                        value: Expression::BinaryOp {
+                            op: BinaryOperator::Add,
+                            left: Box::new(Expression::Variable(self.rpos3.clone())),
+                            right: Box::new(Expression::UnaryOp {
+                                op: tungsten_wg::spmt::UnaryOperator::Negate,
+                                operand: Box::new(Expression::Variable(self.origin.clone())),
+                            }),
+                        },
+                    });
+                    let (inlined_expr, mut inlined_body) = inlined_expr.unwrap();
+                    inlined_body.push(Statement::Assign {
+                        target: r,
+                        value: inlined_expr,
+                    });
+                    // There is even more fuckery! Since Flatcaches cache over 5 units instead of 4, the
+                    // maximum offset that is cached is 20, and not 16 as one might initially think
+                    self.add_statement(Statement::If {
+                        condition: v
+                            .field("x", F64)
+                            .lt(Expression::Double(20.0))
+                            .and(v.field("z", F64).lt(Expression::Double(20.0)))
+                            .and(v.field("x", F64).ge(Expression::Double(0.0)))
+                            .and(v.field("z", F64).ge(Expression::Double(0.0))),
+                        then_branch: body!(self, {
+                            r = normal_expr;
+                        }),
+                        else_branch: inlined_body,
+                    });
+                    self.add_variable(v);
+                    self.add_variable(r);
+                    r.into()
+                } else {
+                    normal_expr
                 }
             }
             DensityType::EndIslands => {
@@ -1192,20 +1398,25 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 }
             }
             DensityType::CacheOnce { argument } => {
+                let inline_mode = self.builder_state.as_ref().unwrap().inline_mode;
+                if inline_mode.non_2d() || matches!(argument, DensityType::Const(_)) {
+                    return self.lower_density(argument);
+                }
+
                 if let Some(cached) = self.get_function_cached_density_input(&density) {
-                    return Expression::DensityVariable(cached.clone(), None);
+                    return Expression::DensityVariable(cached.clone(), self.neutral_indexing());
                 }
 
                 let input = self.lower_density_input(argument, None, None);
                 // add to cache
                 self.add_density_input_to_cache(density, input.clone());
                 // return the density variable for the input
-                Expression::DensityVariable(input, None)
+                Expression::DensityVariable(input, self.neutral_indexing())
             }
 
             DensityType::OldBlendedNoise { .. } => {
                 if let Some(cached) = self.get_function_cached_density_input(&density) {
-                    return Expression::DensityVariable(cached.clone(), None);
+                    return Expression::DensityVariable(cached.clone(), self.neutral_indexing());
                 }
 
                 // let input = self.lower_density_input(argument, None, None);
@@ -1244,7 +1455,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 self.add_density_input_to_cache(&density, input.clone());
                 self.density_function.add_density_input(input.clone());
 
-                return Expression::DensityVariable(input, None);
+                return Expression::DensityVariable(input, self.neutral_indexing());
             }
 
             DensityType::ShiftedNoise { .. } => self.lower_shifted_noise(density, None),
@@ -1401,11 +1612,19 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 let scaled_origin = (1.0, 1.0, 1.0);
                 let scaled_position = (1.0, 1.0, 1.0);
 
+                let offset = bs.rpos_offset;
+
                 self.builder_state = Some(bs);
 
                 // 4. Lower noise but don't mark it, we just want the density function reference
-                let (noise_function_ref, perm_tables) =
-                    self.lower_noise(argument, scaled_origin, scaled_position, &name, cname);
+                let (noise_function_ref, perm_tables) = self.lower_noise(
+                    argument,
+                    scaled_origin,
+                    scaled_position,
+                    offset,
+                    &name,
+                    cname,
+                );
                 // add it as a helper function
                 self.helper_functions.push(noise_function_ref.clone());
                 let perm_tables_args = perm_tables
@@ -1626,12 +1845,14 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     .unwrap()
                     .working_set
                     .scaled_position;
+                let offset = self.builder_state.as_ref().unwrap().rpos_offset;
 
                 // Lower noise but don't mark it, we just want the density function reference
                 let (noise_function_ref, perm_tables) = self.lower_noise(
                     noise_to_sample,
                     scaled_origin,
                     scaled_position,
+                    offset,
                     &name,
                     cname,
                 );
@@ -1706,12 +1927,12 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                     return self.lower_density(argument);
                 }
                 if let Some(cached) = self.get_function_cached_density_input(&density) {
-                    return Expression::DensityVariable(cached.clone(), None);
+                    return Expression::DensityVariable(cached.clone(), self.neutral_indexing());
                 }
                 let name = format!("{}", name,);
                 let input = self.lower_density_input(argument, Some(name), None);
                 // return the density variable for the input
-                Expression::DensityVariable(input, None)
+                Expression::DensityVariable(input, self.neutral_indexing())
 
                 // it's not needed anymore to cache the density input for named density references,
 
@@ -1742,99 +1963,101 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         density: Density<'a>,
         _canonical_name: Option<String>,
     ) -> Expression<'m> {
-        // 0. initiate caching
-        let density_input = self.lower_density_input(
-            density,
-            None,
-            Some(&|builder, density| {
-                let DensityType::ShiftedNoise {
-                    ref name,
-                    noise,
-                    shift_x,
-                    shift_y,
-                    shift_z,
-                    xz_scale,
-                    y_scale,
-                } = *density
-                else {
-                    panic!("Expected ShiftedNoise density");
-                };
+        let shift_lower_function = |builder: &mut DensityBuilder<'a, 'm>, density: Density<'a>| {
+            let DensityType::ShiftedNoise {
+                ref name,
+                noise,
+                shift_x,
+                shift_y,
+                shift_z,
+                xz_scale,
+                y_scale,
+            } = *density
+            else {
+                panic!("Expected ShiftedNoise density");
+            };
 
-                // 1. Lower shift densities
-                let shift_x_expr = builder.lower_density(shift_x);
-                let shift_y_expr = builder.lower_density(shift_y);
-                let shift_z_expr = builder.lower_density(shift_z);
+            // 1. Lower shift densities
+            let shift_x_expr = builder.lower_density(shift_x);
+            let shift_y_expr = builder.lower_density(shift_y);
+            let shift_z_expr = builder.lower_density(shift_z);
 
-                // 2. Build vec3(shiftX, shiftY, shiftZ)
-                let shift_vec = Expression::Construct {
-                    t: VariableType::Vec3,
-                    args: vec![shift_x_expr, shift_y_expr, shift_z_expr],
-                };
+            // 2. Build vec3(shiftX, shiftY, shiftZ)
+            let shift_vec = Expression::Construct {
+                t: VariableType::Vec3,
+                args: vec![shift_x_expr, shift_y_expr, shift_z_expr],
+            };
 
-                // 3. p + shift_vec
-                let shifted_position = if xz_scale == 1.0 && y_scale == 1.0 {
-                    Expression::BinaryOp {
-                        op: BinaryOperator::Add,
-                        left: Box::new(Expression::Variable(builder.rpos3.clone())),
-                        right: Box::new(shift_vec),
-                    }
-                } else {
-                    Expression::BinaryOp {
-                        op: BinaryOperator::Add,
-                        left: Box::new(Expression::BinaryOp {
-                            op: BinaryOperator::Multiply,
-                            left: Box::new(Expression::Variable(builder.rpos3.clone())),
-                            right: Box::new(Expression::Construct {
-                                t: VariableType::Vec3,
-                                args: vec![
-                                    Expression::Double(xz_scale),
-                                    Expression::Double(y_scale),
-                                    Expression::Double(xz_scale),
-                                ],
-                            }),
-                        }),
-                        right: Box::new(shift_vec),
-                    }
-                };
-
-                let mut bs = builder.builder_state.take().unwrap();
-                let id = bs.use_density_counter();
-                let cname = format!("{}_shifted_{}", name, id);
-                let scaled_origin = (
-                    bs.working_set.scaled_origin.0 * xz_scale,
-                    bs.working_set.scaled_origin.1 * y_scale,
-                    bs.working_set.scaled_origin.2 * xz_scale,
-                );
-                let scaled_position = (
-                    bs.working_set.scaled_position.0 * xz_scale,
-                    bs.working_set.scaled_position.1 * y_scale,
-                    bs.working_set.scaled_position.2 * xz_scale,
-                );
-
-                builder.builder_state = Some(bs);
-
-                // 4. Lower noise but don't mark it, we just want the density function reference
-                let (noise_function_ref, perm_tables) =
-                    builder.lower_noise(noise, scaled_origin, scaled_position, &name, cname);
-                // add it as a helper function
-                builder.helper_functions.push(noise_function_ref.clone());
-                let perm_tables_args = perm_tables
-                    .clone()
-                    .into_iter()
-                    .map(|perm_table| Expression::PermutationTable(perm_table));
-                // add the permutation tables to the current density function
-                builder
-                    .density_function
-                    .permutation_table_inputs
-                    .extend(perm_tables);
-                Expression::FunctionCall {
-                    function: noise_function_ref,
-                    parameters: vec![shifted_position.into()],
+            // 3. p + shift_vec
+            let shifted_position = if xz_scale == 1.0 && y_scale == 1.0 {
+                Expression::BinaryOp {
+                    op: BinaryOperator::Add,
+                    left: Box::new(Expression::Variable(builder.rpos3.clone())),
+                    right: Box::new(shift_vec),
                 }
-            }),
-        );
+            } else {
+                Expression::BinaryOp {
+                    op: BinaryOperator::Add,
+                    left: Box::new(Expression::BinaryOp {
+                        op: BinaryOperator::Multiply,
+                        left: Box::new(Expression::Variable(builder.rpos3.clone())),
+                        right: Box::new(Expression::Construct {
+                            t: VariableType::Vec3,
+                            args: vec![
+                                Expression::Double(xz_scale),
+                                Expression::Double(y_scale),
+                                Expression::Double(xz_scale),
+                            ],
+                        }),
+                    }),
+                    right: Box::new(shift_vec),
+                }
+            };
 
-        Expression::DensityVariable(density_input, None)
+            let mut bs = builder.builder_state.take().unwrap();
+            let id = bs.use_density_counter();
+            let cname = format!("{}_shifted_{}", name, id);
+            let scaled_origin = (
+                bs.working_set.scaled_origin.0 * xz_scale,
+                bs.working_set.scaled_origin.1 * y_scale,
+                bs.working_set.scaled_origin.2 * xz_scale,
+            );
+            let scaled_position = (
+                bs.working_set.scaled_position.0 * xz_scale,
+                bs.working_set.scaled_position.1 * y_scale,
+                bs.working_set.scaled_position.2 * xz_scale,
+            );
+            let offset = bs.rpos_offset;
+            builder.builder_state = Some(bs);
+
+            // 4. Lower noise but don't mark it, we just want the density function reference
+            let (noise_function_ref, perm_tables) =
+                builder.lower_noise(noise, scaled_origin, scaled_position, offset, &name, cname);
+            // add it as a helper function
+            builder.helper_functions.push(noise_function_ref.clone());
+            let perm_tables_args = perm_tables
+                .clone()
+                .into_iter()
+                .map(|perm_table| Expression::PermutationTable(perm_table));
+            // add the permutation tables to the current density function
+            builder
+                .density_function
+                .permutation_table_inputs
+                .extend(perm_tables);
+            Expression::FunctionCall {
+                function: noise_function_ref,
+                parameters: vec![shifted_position.into()],
+            }
+        };
+        if self.builder_state.as_ref().unwrap().inline_mode.non_2d() {
+            // directly lower
+            return shift_lower_function(self, density);
+        }
+
+        // 0. initiate caching
+        let density_input = self.lower_density_input(density, None, Some(&shift_lower_function));
+
+        Expression::DensityVariable(density_input, self.neutral_indexing())
     }
 
     pub fn dedup_permutation_tables(&mut self) {

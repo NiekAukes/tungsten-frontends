@@ -17,6 +17,7 @@ pub fn lower_normal_noise<'m>(
     cname: String,
     origin_scale: (f64, f64, f64),
     position_scale: (f64, f64, f64),
+    offset: (f64, f64, f64),
     as_density: bool,
 ) -> (Function<'m>, Vec<PermutationTableInput>) {
     let mut variables = Vec::new();
@@ -36,6 +37,23 @@ pub fn lower_normal_noise<'m>(
             target: rpos3.clone(),
             value: make_rpos3(pos3.clone(), origin.clone(), origin_scale, position_scale),
         });
+        if offset != (0.0, 0.0, 0.0) {
+            body.push(Statement::Assign {
+                target: rpos3.clone(),
+                value: Expression::BinaryOp {
+                    op: BinaryOperator::Add,
+                    left: Box::new(Expression::Variable(rpos3.clone())),
+                    right: Box::new(Expression::Construct {
+                        t: VariableType::Vec3,
+                        args: vec![
+                            Expression::Double(offset.0 * origin_scale.0),
+                            Expression::Double(offset.1 * origin_scale.1),
+                            Expression::Double(offset.2 * origin_scale.2),
+                        ],
+                    }),
+                },
+            });
+        }
     }
 
     // create perlin rpos3fxs for each octave

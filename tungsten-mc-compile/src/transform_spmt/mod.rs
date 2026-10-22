@@ -80,6 +80,26 @@ impl ScalingSet {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InlineMode {
+    Default,
+    AlwaysUnless2D,
+    FlatCacheWeirdness,
+}
+
+impl InlineMode {
+    pub fn non_2d(&self) -> bool {
+        matches!(
+            self,
+            InlineMode::AlwaysUnless2D | InlineMode::FlatCacheWeirdness
+        )
+    }
+
+    pub fn in_2d(&self) -> bool {
+        matches!(self, InlineMode::FlatCacheWeirdness)
+    }
+}
+
 pub struct BuilderState<'a, 'm> {
     density_function_cache: DensityFunctionCache<'a, 'm>,
     pub noise_cache: NoiseCache<'a, 'm>,
@@ -106,6 +126,12 @@ pub struct BuilderState<'a, 'm> {
     // sometimes necessary because Flatcache and Cache2d are flipped in order.
     in_cache_2d_context: bool,
 
+    /// A toggle indicating whether to always inline non-2d functions
+    pub(crate) inline_mode: InlineMode,
+    pub(crate) already_flatcached: bool,
+
+    rpos_offset: (f64, f64, f64),
+
     pub noise_settings: NoiseSettings,
     density_counter: usize,
 }
@@ -115,8 +141,9 @@ impl<'a, 'm> BuilderState<'a, 'm> {
         let key = DensityKey {
             density: *density,
             dimensions: self.working_set.dimensions,
-            scaled_position: Scale::default(),
-            scaled_origin: Scale::default(),
+            scaled_position: Scale::ones(),
+            scaled_origin: Scale::ones(),
+            offset: Scale::zeros(),
         };
         self.density_function_cache.get(&key).cloned()
     }
@@ -125,8 +152,9 @@ impl<'a, 'm> BuilderState<'a, 'm> {
         let key = DensityKey {
             density,
             dimensions: self.working_set.dimensions,
-            scaled_position: Scale::default(),
-            scaled_origin: Scale::default(),
+            scaled_position: Scale::ones(),
+            scaled_origin: Scale::ones(),
+            offset: Scale::zeros(),
         };
         if self.density_function_cache.contains_key(&key) {
             // panic!("Density function already exists in cache: {:?}", func.canonical_name);
@@ -167,6 +195,7 @@ impl<'a, 'm> Transformer<'a, 'm> {
                 add_interpolation_dimension: false,
                 known_y_sample_point: None,
                 in_cache_2d_context: false,
+                rpos_offset: (0.0, 0.0, 0.0),
                 noise_settings: NoiseSettings {
                     min_y: 0,
                     height: 256,
@@ -174,6 +203,8 @@ impl<'a, 'm> Transformer<'a, 'm> {
                     size_vertical: 4,
                 },
                 density_counter: 0,
+                inline_mode: InlineMode::Default,
+                already_flatcached: false,
             }),
         }
     }

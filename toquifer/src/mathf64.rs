@@ -180,6 +180,14 @@ impl std::ops::Mul<Vec3> for Pos3 {
     }
 }
 
+impl std::ops::Neg for Vec3 {
+    type Output = Self;
+    #[inline(always)]
+    fn neg(self) -> Vec3 {
+        Vec3::new(-self.x, -self.y, -self.z)
+    }
+}
+
 #[inline(always)]
 pub fn as_index(pos: Pos3, size_x: i32, size_y: i32, _size_z: i32) -> usize {
     (pos.z * size_y * size_x + pos.y * size_x + pos.x) as usize
