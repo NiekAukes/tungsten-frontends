@@ -8,8 +8,8 @@ use crate::{
     parse::{
         density::DensityParseFunctions,
         model::{
-            CoordinateType, Density, DensitySource, DensityType::Beardify, NoiseGeneratorSettings,
-            NoiseRouter, NoiseSettings, NormalNoise, NormalNoiseType,
+            CoordinateType, Density, DensitySource, NoiseGeneratorSettings, NoiseRouter,
+            NoiseSettings, NormalNoise, NormalNoiseType,
         },
     },
 };

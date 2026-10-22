@@ -269,7 +269,7 @@ impl DotPrinter {
             DensityType::FindTopSurface {
                 density,
                 cell_height: _,
-                lower_bound,
+                lower_bound: _,
                 upper_bound,
             } => {
                 let density_id = self.visit_density(density);

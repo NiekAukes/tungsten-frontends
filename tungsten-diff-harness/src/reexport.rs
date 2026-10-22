@@ -210,10 +210,14 @@ pub fn density_to_json(density: Density) -> Value {
         }),
         DensityType::Beardify => todo!(),
         DensityType::Aquifer {
-            final_density,
-            depth,
-            erosion,
-            floodedness,
+            // final_density,
+            // depth,
+            // erosion,
+            // floodedness,
+            // spread,
+            // fluid_type,
+            // barrier,
+            ..
         } => todo!(),
         DensityType::Custom(_) => todo!(),
     }

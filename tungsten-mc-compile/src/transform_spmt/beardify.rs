@@ -1,14 +1,14 @@
 use tungsten_wg::{
-    body, build, extern_fns,
+    build, extern_fns,
     spmt::{
-        VariableType::{Array, Extern, Vec3, F64, I32},
+        VariableType::{Array, Extern, F64, I32},
         *,
     },
 };
 
 use crate::{
     parse::model::Density,
-    transform_spmt::{anonvar, density::DensityBuilder, newvar, prefixvar},
+    transform_spmt::{density::DensityBuilder, newvar, prefixvar},
 };
 use builder::*;
 
@@ -21,6 +21,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
     }
 }
 
+#[allow(dead_code)]
 enum Adjustment {
     AdjNone = 0,
     AdjBury = 1,
@@ -117,7 +118,7 @@ macro_rules! decl {
 
 fn lower_beardify<'a, 'm>(
     builder: &mut DensityBuilder<'a, 'm>,
-    density: Density<'a>,
+    _density: Density<'a>,
 ) -> Expression<'m> {
     let jigsaw_array = newvar(
         builder.arena,
@@ -146,10 +147,10 @@ fn lower_beardify<'a, 'm>(
     }
     fn get_box<'m>(piece: impl Into<Expression<'m>>) -> Expression<'m> {
         piece.into().field("block_box", Extern("BlockBox"))
-    };
+    }
     fn ground_level_delta<'m>(piece: impl Into<Expression<'m>>) -> Expression<'m> {
         piece.into().field("ground_level_delta", I32)
-    };
+    }
     build!(builder, {
         d = 0.0;
 
@@ -322,14 +323,17 @@ fn lower_beardify<'a, 'm>(
     d.into()
 }
 
-fn lower_ground_level_delta<'a, 'm>(builder: &mut DensityBuilder<'a, 'm>) -> FunctionRef<'m> {
+#[allow(dead_code)]
+fn lower_ground_level_delta<'a, 'm>(_builder: &mut DensityBuilder<'a, 'm>) -> FunctionRef<'m> {
     todo!()
 }
 
-fn lower_terrain_adjustment<'a, 'm>(builder: &mut DensityBuilder<'a, 'm>) -> FunctionRef<'m> {
+#[allow(dead_code)]
+fn lower_terrain_adjustment<'a, 'm>(_builder: &mut DensityBuilder<'a, 'm>) -> FunctionRef<'m> {
     todo!()
 }
 
-fn lower_get_structure_weight<'a, 'm>(builder: &mut DensityBuilder<'a, 'm>) -> FunctionRef<'m> {
+#[allow(dead_code)]
+fn lower_get_structure_weight<'a, 'm>(_builder: &mut DensityBuilder<'a, 'm>) -> FunctionRef<'m> {
     todo!()
 }

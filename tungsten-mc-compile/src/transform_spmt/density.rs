@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    parse::model::{Density, DensityType, NoiseGeneratorSettings, NoiseSettings, NormalNoise},
+    parse::model::{Density, DensityType, NoiseGeneratorSettings, NormalNoise},
     transform_spmt::{
         anonvar, newvar,
         noise::{lower_normal_noise, lower_old_blended_noise},
@@ -289,7 +289,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         name: String,
     ) -> (FunctionRef<'m>, Vec<PermutationTableInput>) {
         // lower the noise into a density function
-        let (mut function, perm_tables) = lower_normal_noise(
+        let (function, perm_tables) = lower_normal_noise(
             self.arena,
             density,
             permutation_name,
@@ -606,7 +606,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
             lower_function,
         );
 
-        let mut dimensions = self.builder_state.as_ref().unwrap().working_set.dimensions;
+        let dimensions = self.builder_state.as_ref().unwrap().working_set.dimensions;
         let scaled_origin = self
             .builder_state
             .as_ref()
@@ -1627,10 +1627,6 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 );
                 // add it as a helper function
                 self.helper_functions.push(noise_function_ref.clone());
-                let perm_tables_args = perm_tables
-                    .clone()
-                    .into_iter()
-                    .map(|perm_table| Expression::PermutationTable(perm_table));
                 // add the permutation tables to the current density function
                 self.density_function
                     .permutation_table_inputs
@@ -1858,10 +1854,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 );
                 // add it as a helper function
                 self.helper_functions.push(noise_function_ref.clone());
-                let perm_tables_args = perm_tables
-                    .clone()
-                    .into_iter()
-                    .map(|perm_table| Expression::PermutationTable(perm_table));
+
                 // add the permutation tables to the current density function
                 self.density_function
                     .permutation_table_inputs
@@ -2035,10 +2028,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 builder.lower_noise(noise, scaled_origin, scaled_position, offset, &name, cname);
             // add it as a helper function
             builder.helper_functions.push(noise_function_ref.clone());
-            let perm_tables_args = perm_tables
-                .clone()
-                .into_iter()
-                .map(|perm_table| Expression::PermutationTable(perm_table));
+
             // add the permutation tables to the current density function
             builder
                 .density_function
@@ -2355,8 +2345,8 @@ impl<'a, 'm> SPMTBuilder<'m> for DensityBuilder<'a, 'm> {
 
     fn constant(
         &self,
-        name: &str,
-        t: VariableType,
+        _name: &str,
+        _t: VariableType,
         _value: impl Into<tungsten_wg::spmt::Expression<'m>>,
     ) -> Var<'m> {
         panic!("DensityBuilder does not support constants via the constant() method, use add_constant() instead");

@@ -76,6 +76,6 @@ fn calculate_structure_weight(x: i32, y: i32, z: i32) -> f64 {
     let y = y as f64 + 0.5;
     let x = x as f64;
     let z = z as f64;
-    let d = (x * x + y * y + z * z);
+    let d = x * x + y * y + z * z;
     std::f64::consts::E.powf(-d / 16.0)
 }

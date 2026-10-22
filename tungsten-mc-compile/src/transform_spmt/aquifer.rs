@@ -19,7 +19,6 @@ use tungsten_wg::{body, build, spmt::Expression};
 use crate::parse::model::DensityType;
 use crate::parse::model::DensityType::Aquifer;
 use crate::transform_spmt::newvar;
-use crate::transform_spmt::spline::old;
 use crate::transform_spmt::InlineMode;
 use crate::transform_spmt::ScalingSet;
 use crate::{parse::model::Density, transform_spmt::density::DensityBuilder};
@@ -58,19 +57,19 @@ struct AquiferSamplerResult {
     block_state: BlockState,
 }
 
+#[allow(dead_code)]
 enum BlockState {
-    Solid,
-    Special,
-    Air,
-    Water,
-    Lava,
+    Solid = 0,
+    Air = 2,
+    Water = 3,
+    Lava = 4,
 }
 
 impl From<BlockState> for i32 {
     fn from(state: BlockState) -> Self {
         match state {
             BlockState::Solid => 0,
-            BlockState::Special => 1,
+            // BlockState::Special => 1,
             BlockState::Air => 2,
             BlockState::Water => 3,
             BlockState::Lava => 4,
@@ -769,14 +768,12 @@ fn generate_water_levels<'a, 'm>(
     // let start_x = newvar(builder.arena, "start_x", VariableType::I32);
     // let start_z = newvar(builder.arena, "start_z", VariableType::I32);
 
-    let mut bs = builder.builder_state.take().unwrap();
+    let bs = builder.builder_state.take().unwrap();
     let dimensions = (
         (bs.sampling_set.dimensions.0 >> 4) + 2,
         y_dim,
         (bs.sampling_set.dimensions.2 >> 4) + 2,
     );
-
-    let x_dim_esh = bs.sampling_set.dimensions.0 >> 2;
 
     builder.builder_state = Some(bs);
     /*
@@ -1703,7 +1700,7 @@ fn generate_aquifer_calculate_density<'a, 'm>(
 }
 
 fn get_noise_based_fluid_level<'a, 'm>(
-    builder: &mut DensityBuilder<'a, 'm>,
+    _builder: &mut DensityBuilder<'a, 'm>,
     fluid_level_spread: FunctionRef<'m>,
     block_x: impl Into<Expression<'m>>,
     block_y: impl Into<Expression<'m>>,

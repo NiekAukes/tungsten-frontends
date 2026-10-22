@@ -7,10 +7,8 @@ use crate::{
 
 use tungsten_wg::{
     orchestrate::Scale,
-    spmt::builder::SPMTBuilder,
     spmt::model::{
-        DensityFunctionRef, DensityInput, MainDensityFunction, Name, Var, Variable, VariableType,
-        SPMT,
+        DensityFunctionRef, MainDensityFunction, Name, Var, Variable, VariableType, SPMT,
     },
 };
 
