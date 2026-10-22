@@ -4,7 +4,6 @@ members = [
     "tungsten-mc-compile",
     "tungsten-mc",
     "tungsten-diff-harness",
-    "toquifer",
 ]
 # rust_wrapper is compiled out-of-band (its own workspace) by the harness at
 # runtime, once a concrete density.rs has been generated, so it must stay out
