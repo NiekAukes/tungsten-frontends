@@ -393,6 +393,8 @@ dependencies = [
 [[package]]
 name = "tungsten-wg"
 version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46f19ec001c9b62c3c2967bd05307a99b90f4334b8aaf5bdde6e5e4827ebd0ad"
 dependencies = [
  "bumpalo",
  "md5 0.8.0",
