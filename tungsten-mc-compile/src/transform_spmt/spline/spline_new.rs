@@ -1,5 +1,5 @@
 use crate::{
-    parse::model::{Spline, SplineValue},
+    parse::model::{DensityType, Spline, SplineValue},
     transform_spmt::{density::DensityBuilder, prefixvar},
 };
 
@@ -101,8 +101,15 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         let input_var = prefixvar(self.arena, "coordinate", VariableType::F32);
         self.add_variable(input_var);
         // lower the coordinate into a function that takes the input coordinate and returns the value
-        let coordinate = self.lower_density_input(spline.coordinate, None, None);
-        let coordinate_expr = Expression::DensityVariable(coordinate, None);
+
+        let inline_policy = self.builder_state.as_ref().unwrap().inline_mode;
+        let coordinate_expr =
+            if inline_policy.non_2d() || matches!(spline.coordinate, DensityType::Const(_)) {
+                self.lower_density(spline.coordinate)
+            } else {
+                let coordinate = self.lower_density_input(spline.coordinate, None, None);
+                Expression::DensityVariable(coordinate, self.neutral_indexing())
+            };
         self.add_statement(Statement::Assign {
             target: input_var,
             value: coordinate_expr.clone(),

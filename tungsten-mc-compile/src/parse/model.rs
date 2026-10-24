@@ -10,6 +10,8 @@ pub struct NoiseRouter<'m> {
     pub depth: DensitySource<'m>,
     pub erosion: DensitySource<'m>,
     pub final_density: DensitySource<'m>,
+    // The final density after applying the beardifier.
+    pub final_density_with_beard: DensitySource<'m>,
     pub fluid_level_floodedness: DensitySource<'m>,
     pub fluid_level_spread: DensitySource<'m>,
     pub preliminary_surface_level: DensitySource<'m>,
@@ -20,6 +22,8 @@ pub struct NoiseRouter<'m> {
     pub vein_gap: DensitySource<'m>,
     pub vein_ridged: DensitySource<'m>,
     pub vein_toggle: DensitySource<'m>,
+
+    pub aquifer_sampler: DensitySource<'m>,
 }
 
 #[derive(Debug, Clone)]
@@ -27,10 +31,12 @@ pub struct NoiseGeneratorSettings<'m> {
     pub aquifers_enabled: bool,
     pub default_block: String,
     pub default_fluid: String,
+    /// IMPORTANT: This is not sea level! It represents the default fluid state in the world.
     pub default_fluid_level: i32,
     pub disable_mob_generation: bool,
     pub noise: NoiseSettings,
     pub noise_router: NoiseRouter<'m>,
+    pub sea_level: i32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -208,6 +214,27 @@ pub enum DensityType<'m> {
         name: Interned<'m, String>,
         argument: Density<'m>,
     },
+
+    // Custom Density types, not covered by JSON
+    Beardify,
+
+    // Aquifer sampling
+    Aquifer {
+        final_density: Density<'m>,
+        depth: Density<'m>,
+        erosion: Density<'m>,
+        floodedness: Density<'m>,
+        spread: Density<'m>,
+        fluid_type: Density<'m>,
+        barrier: Density<'m>,
+    },
+
+    // WaterTable {
+    //     depth: Density<'m>,
+    //     erosion: Density<'m>,
+    //     floodedness: Density<'m>,
+    // },
+    Custom(&'static str),
 }
 
 impl Hash for DensityType<'_> {
@@ -413,6 +440,32 @@ impl Hash for DensityType<'_> {
                 lower_bound.hash(state);
                 upper_bound.hash(state);
             }
+            DensityType::Beardify => {
+                29.hash(state);
+            }
+            DensityType::Aquifer {
+                final_density,
+                depth,
+                erosion,
+                floodedness,
+                spread,
+                fluid_type,
+                barrier,
+            } => {
+                30.hash(state);
+                final_density.hash(state);
+                depth.hash(state);
+                erosion.hash(state);
+                floodedness.hash(state);
+                spread.hash(state);
+                fluid_type.hash(state);
+                barrier.hash(state);
+            }
+
+            DensityType::Custom(name) => {
+                100.hash(state);
+                name.hash(state);
+            }
         }
     }
 }
@@ -488,6 +541,17 @@ impl<'m> DensitySource<'m> {
         match self {
             DensitySource::MultiSamplingDensity { density, .. } => density,
             DensitySource::SingleSamplingDensity { density } => density,
+        }
+    }
+}
+
+impl<'m> DensityType<'m> {
+    pub fn strip_named_density(&'m self) -> Density<'m> {
+        match self {
+            DensityType::NamedDensityReference { name: _, argument } => {
+                argument.strip_named_density()
+            }
+            _ => self,
         }
     }
 }

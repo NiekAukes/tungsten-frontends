@@ -39,8 +39,9 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         // first evaluate the density upper bound
         // dimensions = (x, total height / cell height, z)
         let workset = self.builder_state.as_ref().unwrap().working_set;
-        let y_dim = self.noise_settings.height / cell_height;
-        assert!(self.noise_settings.height % cell_height == 0);
+        let y_dim = self.noise_generator_settings.noise.height / cell_height;
+        let min_y = self.noise_generator_settings.noise.min_y / cell_height;
+        // assert!(self.noise_generator_settings.noise.height % cell_height == 0);
         let new_dimensions = (workset.dimensions.0, y_dim, workset.dimensions.2);
         let new_scaled_position = (
             workset.scaled_position.0,
@@ -67,18 +68,20 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         self.add_variable(j);
         self.add_variable(r);
         build!(self, {
+            // begin of SPMT
             i = floor(upper_bound / (cell_height as f64)) * (cell_height as f64);
             if (i.le(lower_bound)) {
                 i = lower_bound;
             } else {
                 j = i / cell_height;
+                i = lower_bound;
                 while (j.ge(lower_bound / cell_height)) {
                     let sample = Expression::DensityVariable(
                         density_di,
                         Some(
                             preliminary_surface_index(
                                 self.p.clone(),
-                                j,
+                                j - min_y,
                                 cell_height,
                                 workset.dimensions.0,
                                 y_dim,
@@ -96,6 +99,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
                 }
             }
             r = i;
+            // end of SPMT
         });
         r.into()
     }

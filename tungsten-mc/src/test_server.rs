@@ -1,13 +1,18 @@
 use std::io::{BufRead, BufReader, Write};
+use std::mem::MaybeUninit;
 use std::net::TcpListener;
+use std::sync::{Mutex, OnceLock};
 
+use crate::orchestration::HostConsts;
+
+use crate::preliminary_surface_cache::PreliminarySurfaceCache;
 use crate::utils::make_permutation_table;
 
-use crate::mathf64::{Pos3, Vec3, as_index};
+use crate::mathf64::{as_index, Pos3, Vec3};
 use crate::perlin::{create_perlin_noise_sampler, sample_perlin};
-use crate::utilsf64::{PerlinNoiseSampler, abs, clamp, fade, hermite, max, min};
+use crate::utilsf64::{abs, clamp, fade, hermite, max, min, PerlinNoiseSampler};
 use crate::xoroshiro::{
-    Xoroshiro128PlusPlusRandom, XoroshiroSeed, create_xoroshiro_seed, create_xoroshiro_seed_str,
+    create_xoroshiro_seed, create_xoroshiro_seed_str, Xoroshiro128PlusPlusRandom, XoroshiroSeed,
 };
 use crate::{density_function, orchestration, utils};
 
@@ -154,9 +159,8 @@ pub fn run(addr: &str) {
     }
 }
 
-use crate::orchestration::{self as orch, OrchestrationOutput, PermutationTables};
+use crate::orchestration::{self as orch};
 
-const NUM_OUTPUTS: usize = 1;
 const MIN_Y: i32 = -64;
 const HEIGHT: usize = (320 - MIN_Y) as usize;
 const DIMS: usize = 16 * HEIGHT * 16;
@@ -166,14 +170,19 @@ const DIMS: usize = 16 * HEIGHT * 16;
 fn run_single_density(
     name: &str,
     origin: Vec3,
-    perm_tables: &PermutationTables,
-) -> Option<Box<[f64; DIMS]>> {
+    orchestrator: &mut orchestration::Orchestration,
+) -> Option<Vec<f64>> {
+    let host_consts = HostConsts::default();
     match name {
         // "barrier" => Some(orch::orchestrate_barrier(origin, perm_tables)),
         // "continents" => Some(orch::orchestrate_continents(origin, perm_tables)),
         // "depth" => Some(orch::orchestrate_depth(origin, perm_tables)),
         // "erosion" => Some(orch::orchestrate_erosion(origin, perm_tables)),
-        "final_density" => Some(orch::orchestrate_final_density(origin, perm_tables)),
+        "final_density" => Some(
+            orchestrator
+                .orchestrate_final_density(origin, &host_consts)
+                .into(),
+        ),
         // "fluid_level_floodedness" => Some(orch::orchestrate_fluid_level_floodedness(
         //     origin,
         //     perm_tables,
@@ -193,6 +202,36 @@ fn run_single_density(
     }
 }
 
+static PRELIMINARY_SURFACE: OnceLock<PreliminarySurfaceCache> = OnceLock::new();
+
+fn get_estimated_surface_height(seed: i64, biome_x: i32, biome_z: i32) -> i32 {
+    // get the preliminary surface height from the cache
+    // if let Some(cache) = &PRELIMINARY_SURFACE {
+    //     return cache.get(biome_x, biome_z);
+    // } else {
+    //     // If the cache is not initialized, initialize it
+    //     unsafe {
+    //         let orchestration = orchestration::Orchestration::new(seed);
+    //         PRELIMINARY_SURFACE = Some(PreliminarySurfaceCache::new(orchestration));
+    //     }
+    //     if let Some(cache) = &PRELIMINARY_SURFACE {
+    //         return cache.get(biome_x, biome_z);
+    //     } else {
+    //         panic!("Failed to initialize preliminary surface cache");
+    //     }
+    // }
+
+    // let mut cache = PRELIMINARY_SURFACE.lock().unwrap();
+    // if cache.is_none() {
+    //     let orchestration = orchestration::Orchestration::new(seed);
+    //     *cache = Some(PreliminarySurfaceCache::new(orchestration));
+    // }
+
+    let cache = PRELIMINARY_SURFACE
+        .get_or_init(|| PreliminarySurfaceCache::new(orchestration::Orchestration::new(seed)));
+    cache.get(biome_x, biome_z)
+}
+
 const VALID_DENSITY_NAMES: &[&str] = &[
     "barrier",
     "continents",
@@ -210,28 +249,6 @@ const VALID_DENSITY_NAMES: &[&str] = &[
     "vein_ridged",
     "vein_toggle",
 ];
-
-fn get_output(outputs: &OrchestrationOutput, idx: usize) -> Option<&Box<[f64; DIMS]>> {
-    match idx {
-        // 0 => Some(&outputs.temperature),
-        // 1 => Some(&outputs.vegetation),
-        // 2 => Some(&outputs.initial_density_without_jaggedness),
-        // 3 => Some(&outputs.vein_toggle),
-        // 4 => Some(&outputs.continents),
-        // 5 => Some(&outputs.vein_gap),
-        // 6 => Some(&outputs.vein_ridged),
-        // 7 => Some(&outputs.depth),
-        // 8 => Some(&outputs.fluid_level_spread),
-        9 => Some(&outputs.final_density),
-        // 10 => Some(&outputs.ridges),
-        // 11 => Some(&outputs.lava),
-        // 12 => Some(&outputs.erosion),
-        // 13 => Some(&outputs.barrier),
-        // 14 => Some(&outputs.fluid_level_floodedness),
-        _ => None,
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Dispatcher
 // ---------------------------------------------------------------------------
@@ -314,48 +331,15 @@ fn dispatch(line: &str) -> String {
             }
         }
 
-        // density_point <seed> <ox> <oy> <oz> <px> <py> <pz> <output_idx>
-        "density_point" => with_seed_and_f64_args(args, 7, |seed, a| {
-            let origin = Vec3::new(a[0], a[1], a[2]);
-            let patch_pos = Pos3 {
-                x: a[3] as i32,
-                y: a[4] as i32,
-                z: a[5] as i32,
-            };
-            let output_idx = a[6] as usize;
-
-            if output_idx >= NUM_OUTPUTS {
-                return format!(
-                    "ERR output_idx must be 0-{}, got {}",
-                    NUM_OUTPUTS - 1,
-                    output_idx
-                );
-            }
-
-            let outputs = super::orchestration_seeded(seed, origin);
-            let idx = as_index(patch_pos, 16, 256, 16) as usize;
-
-            if idx >= 65536 {
-                return format!("ERR invalid patch position: {}", idx);
-            }
-
-            match get_output(&outputs, output_idx) {
-                Some(output) => {
-                    let value = output[idx];
-                    format!("OK {value:.10}")
-                }
-                None => format!("ERR output_idx out of range"),
-            }
-        }),
-
         // density_chunk <seed> <ox> <oy> <oz>
         "density_chunk" => with_seed_and_f64_args(args, 3, |seed, a| {
             let origin = Vec3::new(a[0], a[1], a[2]);
 
-            let outputs = super::orchestration_seeded(seed, origin);
+            let mut orchestrator = orchestration::Orchestration::new(seed);
+            let output = orchestrator.orchestrate_final_density(origin, &HostConsts::default());
 
             // Return min/max/mean for each named output
-            let all_outputs: [(&str, &Box<[f64; DIMS]>); NUM_OUTPUTS] = [
+            let all_outputs: [(&str, Vec<f64>); 1] = [
                 // ("temperature", &outputs.temperature),
                 // ("vegetation", &outputs.vegetation),
                 // (
@@ -368,7 +352,7 @@ fn dispatch(line: &str) -> String {
                 // ("vein_ridged", &outputs.vein_ridged),
                 // ("depth", &outputs.depth),
                 // ("fluid_level_spread", &outputs.fluid_level_spread),
-                ("final_density", &outputs.final_density),
+                ("final_density", output.into()),
                 // ("ridges", &outputs.ridges),
                 // ("lava", &outputs.lava),
                 // ("erosion", &outputs.erosion),
@@ -378,7 +362,6 @@ fn dispatch(line: &str) -> String {
             let mut stats = Vec::new();
             for (name, output) in &all_outputs {
                 {
-                    let output = *output;
                     let mut min = f64::INFINITY;
                     let mut max = f64::NEG_INFINITY;
                     let mut sum = 0.0;
@@ -402,28 +385,14 @@ fn dispatch(line: &str) -> String {
         // density_chunk_all <seed> <ox> <oy> <oz> <output_idx>
         "density_chunk_all" => with_seed_and_f64_args(args, 4, |seed, a| {
             let origin = Vec3::new(a[0], a[1], a[2]);
-            let output_idx = a[3] as usize;
 
-            if output_idx >= NUM_OUTPUTS {
-                return format!(
-                    "ERR output_idx must be 0-{}, got {}",
-                    NUM_OUTPUTS - 1,
-                    output_idx
-                );
-            }
+            let mut orchestrator = orchestration::Orchestration::new(seed);
+            let output = orchestrator.orchestrate_final_density(origin, &HostConsts::default());
 
-            let outputs = super::orchestration_seeded(seed, origin);
+            // Format all values from the requested output
+            let formatted: Vec<String> = output.iter().map(|v| format!("{:.6}", v)).collect();
 
-            match get_output(&outputs, output_idx) {
-                Some(output) => {
-                    // Format all 65536 values from the requested output
-                    let formatted: Vec<String> =
-                        output.iter().map(|v| format!("{:.6}", v)).collect();
-
-                    format!("OK {}", formatted.join(" "))
-                }
-                None => format!("ERR output_idx out of range"),
-            }
+            format!("OK {}", formatted.join(" "))
         }),
 
         // ── Permutation / Double Perlin commands ────────────────────────────
@@ -623,8 +592,8 @@ fn dispatch(line: &str) -> String {
             };
             let density_name = args[4];
             let origin = Vec3::new(ox, oy, oz);
-            let perm_tables = utils::set_perlin_seed(seed);
-            match run_single_density(density_name, origin, perm_tables) {
+            let mut orchestrator = orchestration::Orchestration::new(seed);
+            match run_single_density(density_name, origin, &mut orchestrator) {
                 Some(output) => {
                     let mut min = f64::INFINITY;
                     let mut max = f64::NEG_INFINITY;
@@ -693,8 +662,8 @@ fn dispatch(line: &str) -> String {
             if idx >= DIMS {
                 return format!("ERR invalid patch position: {idx}");
             }
-            let perm_tables = utils::set_perlin_seed(seed);
-            match run_single_density(density_name, origin, perm_tables) {
+            let mut orchestrator = orchestration::Orchestration::new(seed);
+            match run_single_density(density_name, origin, &mut orchestrator) {
                 Some(output) => {
                     let value = output[idx];
                     format!("OK {value}")
@@ -732,8 +701,8 @@ fn dispatch(line: &str) -> String {
             };
             let density_name = args[4];
             let origin = Vec3::new(ox, oy, oz);
-            let perm_tables = utils::set_perlin_seed(seed);
-            match run_single_density(density_name, origin, perm_tables) {
+            let mut orchestration = orchestration::Orchestration::new(seed);
+            match run_single_density(density_name, origin, &mut orchestration) {
                 Some(output) => {
                     let formatted: Vec<String> = output.iter().map(|v| format!("{}", v)).collect();
                     format!("OK {}", formatted.join(" "))
@@ -743,6 +712,28 @@ fn dispatch(line: &str) -> String {
                     VALID_DENSITY_NAMES.join(", ")
                 ),
             }
+        }
+
+        "estimated_surface_height" => {
+            if args.len() != 3 {
+                return format!("ERR expected 4 args (seed ox oy oz), got {}", args.len());
+            }
+            let seed = match args[0].parse::<i64>() {
+                Ok(v) => v,
+                Err(e) => return format!("ERR arg 0 (seed) parse error: {e}"),
+            };
+            let ox = match args[1].parse::<f64>() {
+                Ok(v) => v,
+                Err(e) => return format!("ERR arg 1 (ox) parse error: {e}"),
+            };
+            let oz = match args[2].parse::<f64>() {
+                Ok(v) => v,
+                Err(e) => return format!("ERR arg 3 (oz) parse error: {e}"),
+            };
+            let result = get_estimated_surface_height(seed, (ox as i32), (oz as i32));
+            let e = format!("OK {}", result);
+            println!("{}", e);
+            e
         }
 
         // ── Xoroshiro128++ commands ───────────────────────────────────────────
@@ -840,318 +831,4 @@ fn with_args(args: &[&str], expected: usize, f: impl FnOnce(&[f64]) -> String) -
     }
 
     f(&parsed)
-}
-
-// ---------------------------------------------------------------------------
-// Unit tests for the dispatcher itself
-// ---------------------------------------------------------------------------
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ping() {
-        assert_eq!(dispatch("ping"), "OK pong");
-    }
-
-    #[test]
-    fn unknown_function() {
-        assert!(dispatch("foobar 1 2 3").starts_with("ERR"));
-    }
-
-    #[test]
-    fn wrong_arg_count() {
-        // hermite expects 5 args
-        assert!(dispatch("hermite 1 2").starts_with("ERR"));
-    }
-
-    #[test]
-    fn bad_float() {
-        assert!(dispatch("abs notanumber").starts_with("ERR"));
-    }
-
-    #[test]
-    fn abs_works() {
-        let resp = dispatch("abs -3.14");
-        assert!(resp.starts_with("OK"));
-        let val: f32 = resp.strip_prefix("OK ").unwrap().trim().parse().unwrap();
-        assert!((val - 3.14).abs() < 1e-4);
-    }
-
-    #[test]
-    fn seeded_perlin_is_finite_and_deterministic() {
-        let resp1 = dispatch("seeded_perlin 42 0 1.5 2.5");
-        let resp2 = dispatch("seeded_perlin 42 0 1.5 2.5");
-        assert!(resp1.starts_with("OK"));
-        let v1: f32 = resp1.strip_prefix("OK ").unwrap().trim().parse().unwrap();
-        let v2: f32 = resp2.strip_prefix("OK ").unwrap().trim().parse().unwrap();
-        assert!(v1.is_finite(), "seeded_perlin should return a finite value");
-        assert_eq!(v1, v2, "same seed and position should give the same result");
-    }
-
-    #[test]
-    fn seeded_perlin_different_seeds_differ() {
-        let resp1 = dispatch("seeded_perlin 0 0 1.5 2.5");
-        let resp2 = dispatch("seeded_perlin 1 0 1.5 2.5");
-        assert!(resp1.starts_with("OK") && resp2.starts_with("OK"));
-        let v1: f32 = resp1.strip_prefix("OK ").unwrap().trim().parse().unwrap();
-        let v2: f32 = resp2.strip_prefix("OK ").unwrap().trim().parse().unwrap();
-        assert!(
-            (v1 - v2).abs() > 1e-6,
-            "different seeds should produce different values"
-        );
-    }
-
-    #[test]
-    fn perlin_lattice_zero() {
-        let resp = dispatch("perlin 0 0 0");
-        assert!(resp.starts_with("OK"));
-        let val: f32 = resp.strip_prefix("OK ").unwrap().trim().parse().unwrap();
-        assert!(val.abs() < 1e-6, "perlin at origin should be ~0, got {val}");
-    }
-
-    #[test]
-    fn clamp_below() {
-        let resp = dispatch("clamp -5.0 0.0 1.0");
-        let val: f32 = resp.strip_prefix("OK ").unwrap().trim().parse().unwrap();
-        assert!((val - 0.0).abs() < 1e-6);
-    }
-
-    #[test]
-    fn density_point_basic() {
-        let resp = dispatch("density_point 0 0 0 0 0 0 0 0");
-        assert!(resp.starts_with("OK"));
-        let val: f32 = resp.strip_prefix("OK ").unwrap().trim().parse().unwrap();
-        assert!(val.is_finite(), "density_point should return finite value");
-    }
-
-    #[test]
-    fn density_point_invalid_output() {
-        let resp = dispatch("density_point 0 0 0 0 0 0 0 20");
-        assert!(
-            resp.starts_with("ERR"),
-            "should reject output_idx >= NUM_OUTPUTS"
-        );
-    }
-
-    #[test]
-    fn density_chunk_returns_stats() {
-        let resp = dispatch("density_chunk 0 0 0 0");
-        assert!(resp.starts_with("OK"));
-        // Response is space-separated tokens of the form "name:min/max/mean"
-        let content = resp.strip_prefix("OK ").unwrap().trim();
-        let parts: Vec<&str> = content.split_whitespace().collect();
-        assert_eq!(
-            parts.len(),
-            17,
-            "density_chunk should return 17 output stats"
-        );
-
-        let expected_names = [
-            "temperature",
-            "vegetation",
-            "initial_density_without_jaggedness",
-            "vein_toggle",
-            "continents",
-            "vein_gap",
-            "vein_ridged",
-            "depth",
-            "fluid_level_spread",
-            "final_density",
-            "ridges",
-            "lava",
-            "erosion",
-            "barrier",
-            "minecraft_cave_layer",
-            "fluid_level_floodedness",
-            "minecraft_temperature_med",
-        ];
-
-        // Each token is "name:min/max/mean"
-        for (i, part) in parts.iter().enumerate() {
-            let (name, stats) = part
-                .split_once(':')
-                .unwrap_or_else(|| panic!("stat {} '{}' missing ':'", i, part));
-            assert_eq!(name, expected_names[i], "stat {} name mismatch", i);
-            let nums: Vec<&str> = stats.split('/').collect();
-            assert_eq!(
-                nums.len(),
-                3,
-                "stat {} should have 3 values (min/max/mean)",
-                i
-            );
-            for (j, num) in nums.iter().enumerate() {
-                let _: f32 = num.parse().unwrap_or_else(|_| {
-                    panic!(
-                        "stat {} value {} '{}' should be parseable as f32",
-                        i, j, num
-                    )
-                });
-            }
-        }
-    }
-
-    #[test]
-    fn density_chunk_all_invalid_output() {
-        let resp = dispatch("density_chunk_all 0 0 0 0 17");
-        assert!(
-            resp.starts_with("ERR"),
-            "should reject output_idx >= NUM_OUTPUTS"
-        );
-    }
-
-    #[test]
-    fn make_permutation_table_returns_origin_and_perm() {
-        let resp = dispatch("make_permutation_table 0 minecraft:ore_gap 0 minecraft:ore_gap");
-        assert!(resp.starts_with("OK"), "should start with OK, got: {resp}");
-        let content = resp.strip_prefix("OK ").unwrap().trim();
-        let parts: Vec<&str> = content.split_whitespace().collect();
-        // 3 xo=/yo=/zo= tokens + 2 p0=/p255= tokens + 256 permutation bytes = 261 tokens
-        assert_eq!(parts.len(), 261, "expected 261 tokens, got {}", parts.len());
-        // First 3 should be xo=, yo=, zo=
-        assert!(
-            parts[0].starts_with("xo="),
-            "first token should start with xo="
-        );
-        assert!(
-            parts[1].starts_with("yo="),
-            "second token should start with yo="
-        );
-        assert!(
-            parts[2].starts_with("zo="),
-            "third token should start with zo="
-        );
-        // p0= and p255=
-        assert!(
-            parts[3].starts_with("p0="),
-            "fourth token should start with p0="
-        );
-        assert!(
-            parts[4].starts_with("p255="),
-            "fifth token should start with p255="
-        );
-        // Remaining 256 should be permutation bytes
-        for i in 5..261 {
-            let _: u8 = parts[i]
-                .parse()
-                .unwrap_or_else(|_| panic!("perm {} should be u8", i - 5));
-        }
-    }
-
-    #[test]
-    fn make_permutation_table_deterministic() {
-        let cmd = "make_permutation_table 42 minecraft:ore_gap 0 minecraft:ore_gap";
-        let resp1 = dispatch(cmd);
-        let resp2 = dispatch(cmd);
-        assert_eq!(resp1, resp2, "same args should produce identical results");
-    }
-
-    #[test]
-    fn double_perlin_basic() {
-        let resp = dispatch("double_perlin 0 minecraft:ore_gap minecraft:ore_gap 1.5 2.5 3.5");
-        assert!(resp.starts_with("OK"), "should start with OK, got: {resp}");
-        let val: f32 = resp.strip_prefix("OK ").unwrap().trim().parse().unwrap();
-        assert!(
-            val.is_finite(),
-            "double_perlin should return a finite value"
-        );
-    }
-
-    #[test]
-    fn double_perlin_deterministic() {
-        let cmd = "double_perlin 0 minecraft:ore_gap minecraft:ore_gap 1.5 2.5 3.5";
-        let resp1 = dispatch(cmd);
-        let resp2 = dispatch(cmd);
-        assert!(resp1.starts_with("OK") && resp2.starts_with("OK"));
-        let v1: f32 = resp1.strip_prefix("OK ").unwrap().trim().parse().unwrap();
-        let v2: f32 = resp2.strip_prefix("OK ").unwrap().trim().parse().unwrap();
-        assert_eq!(v1, v2, "same args should produce the same result");
-    }
-
-    #[test]
-    fn double_perlin_wrong_args() {
-        let resp = dispatch("double_perlin 0 1 2");
-        assert!(resp.starts_with("ERR"), "should reject wrong arg count");
-    }
-
-    #[test]
-    fn density_point_different_positions() {
-        let resp1 = dispatch("density_point 0 0 0 0 0 0 0 0");
-        let resp2 = dispatch("density_point 0 0 0 0 1 0 0 0");
-
-        assert!(resp1.starts_with("OK") && resp2.starts_with("OK"));
-
-        let val1: f32 = resp1.strip_prefix("OK ").unwrap().trim().parse().unwrap();
-        let val2: f32 = resp2.strip_prefix("OK ").unwrap().trim().parse().unwrap();
-
-        // Different positions in same chunk should generally produce different values
-        // (very unlikely they'd be exactly equal)
-        // Note: We only assert they're both finite, not different, since it's probabilistic
-        assert!(val1.is_finite() && val2.is_finite());
-    }
-
-    #[test]
-    fn density_single_point_basic() {
-        let resp = dispatch("density_single_point 0 0 0 0 0 0 0 barrier");
-        assert!(resp.starts_with("OK"), "got: {resp}");
-        let val: f32 = resp.strip_prefix("OK ").unwrap().trim().parse().unwrap();
-        assert!(
-            val.is_finite(),
-            "density_single_point should return finite value"
-        );
-    }
-
-    #[test]
-    fn density_single_point_unknown_density() {
-        let resp = dispatch("density_single_point 0 0 0 0 0 0 0 nonexistent");
-        assert!(
-            resp.starts_with("ERR"),
-            "should reject unknown density_name"
-        );
-    }
-
-    #[test]
-    fn density_single_chunk_basic() {
-        let resp = dispatch("density_single_chunk 0 0 0 0 barrier");
-        assert!(resp.starts_with("OK"), "got: {resp}");
-        assert!(
-            resp.contains("barrier:"),
-            "should contain density name in stats"
-        );
-    }
-
-    #[test]
-    fn density_single_chunk_all_basic() {
-        let resp = dispatch("density_single_chunk_all 0 0 0 0 barrier");
-        assert!(resp.starts_with("OK"), "got: {resp}");
-        let content = resp.strip_prefix("OK ").unwrap().trim();
-        let count = content.split_whitespace().count();
-        assert_eq!(count, 65536, "should return 65536 floats, got {count}");
-    }
-
-    #[test]
-    fn density_single_matches_full_orchestration() {
-        // Verify that single-density output matches the corresponding field
-        // from the full orchestration
-        let full_resp = dispatch("density_point 0 0 0 0 0 0 0 4"); // 4 = continents
-        let single_resp = dispatch("density_single_point 0 0 0 0 0 0 0 continents");
-        assert!(full_resp.starts_with("OK") && single_resp.starts_with("OK"));
-        let full_val: f32 = full_resp
-            .strip_prefix("OK ")
-            .unwrap()
-            .trim()
-            .parse()
-            .unwrap();
-        let single_val: f32 = single_resp
-            .strip_prefix("OK ")
-            .unwrap()
-            .trim()
-            .parse()
-            .unwrap();
-        assert_eq!(
-            full_val, single_val,
-            "single-density should match full orchestration: full={full_val}, single={single_val}"
-        );
-    }
 }

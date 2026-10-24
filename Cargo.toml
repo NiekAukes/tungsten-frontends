@@ -9,3 +9,21 @@ members = [
 # runtime, once a concrete density.rs has been generated, so it must stay out
 # of cargo's normal member resolution.
 exclude = ["tungsten-diff-harness/rust_wrapper"]
+
+
+[profile.release]
+
+opt-level = 3        # Maximum optimization
+lto = "fat"          # Best cross-crate optimization
+codegen-units = 1    # Better optimization, slower compile
+panic = "abort"      # Smaller + faster binaries
+# strip = true         # Remove debug symbols
+overflow-checks = false
+# debug = true
+debug = "line-tables-only"
+
+[profile.profiling]
+inherits = "release"
+lto = false
+codegen-units = 16
+debug = 2

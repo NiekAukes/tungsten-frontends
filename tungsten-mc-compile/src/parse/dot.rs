@@ -146,6 +146,9 @@ impl DotPrinter {
                 format!("FindTopSurface\ncell_height={}", cell_height)
             }
             DensityType::Invert { .. } => format!("Invert\n"),
+            DensityType::Beardify => format!("Beardify"),
+            DensityType::Aquifer { .. } => format!("Aquifer"),
+            DensityType::Custom(name) => format!("Custom(name={})", name),
         }
     }
 
@@ -266,7 +269,7 @@ impl DotPrinter {
             DensityType::FindTopSurface {
                 density,
                 cell_height: _,
-                lower_bound,
+                lower_bound: _,
                 upper_bound,
             } => {
                 let density_id = self.visit_density(density);
@@ -284,6 +287,61 @@ impl DotPrinter {
                 let child_id = self.visit_density(argument);
                 self.edges
                     .push(format!("    {} -> {};", parent_id, child_id));
+            }
+            DensityType::Beardify => {
+                self.nodes
+                    .push(format!("    {} [label=\"Beardify\"];", parent_id));
+            }
+            DensityType::Aquifer {
+                final_density,
+                depth,
+                erosion,
+                floodedness,
+                spread,
+                fluid_type,
+                barrier,
+            } => {
+                let final_density_id = self.visit_density(final_density);
+                let depth_id = self.visit_density(depth);
+                let erosion_id = self.visit_density(erosion);
+                let floodedness_id = self.visit_density(floodedness);
+                let spread_id = self.visit_density(spread);
+                let fluid_type_id = self.visit_density(fluid_type);
+                let barrier_id = self.visit_density(barrier);
+                self.edges.push(format!(
+                    "    {} -> {} [label=\"final_density\"];",
+                    parent_id, final_density_id
+                ));
+                self.edges.push(format!(
+                    "    {} -> {} [label=\"depth\"];",
+                    parent_id, depth_id
+                ));
+                self.edges.push(format!(
+                    "    {} -> {} [label=\"erosion\"];",
+                    parent_id, erosion_id
+                ));
+                self.edges.push(format!(
+                    "    {} -> {} [label=\"floodedness\"];",
+                    parent_id, floodedness_id
+                ));
+                self.edges.push(format!(
+                    "    {} -> {} [label=\"spread\"];",
+                    parent_id, spread_id
+                ));
+                self.edges.push(format!(
+                    "    {} -> {} [label=\"fluid_type\"];",
+                    parent_id, fluid_type_id
+                ));
+                self.edges.push(format!(
+                    "    {} -> {} [label=\"barrier\"];",
+                    parent_id, barrier_id
+                ));
+            }
+            DensityType::Custom(name) => {
+                self.nodes.push(format!(
+                    "    {} [label=\"Custom(name={})\"];",
+                    parent_id, name
+                ));
             }
         }
     }

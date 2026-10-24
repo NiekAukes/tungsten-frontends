@@ -1,21 +1,19 @@
 use crate::mathf64::index;
-use crate::orchestration::{make_permutation_tables, orchestration, PermutationTables};
 use crate::perlin::{create_perlin_noise_sampler, sample_perlin, sample_perlin_scaled};
 use crate::random::Random;
 use crate::xoroshiro::{self, create_xoroshiro_seed_str};
 use crate::Pos3;
-use crate::{
-    mathf64::Vec3,
-    xoroshiro::{create_xoroshiro_seed, Xoroshiro128PlusPlusRandom},
-};
+use crate::{mathf64::Vec3, xoroshiro::create_xoroshiro_seed};
 use std::cell::RefCell;
 
 // Re-export PerlinNoiseSampler from utils so perlin.rs functions are compatible
 pub use crate::utils::PerlinNoiseSampler;
+pub use crate::xoroshiro::Xoroshiro128PlusPlusRandom;
+pub use crate::xoroshiro::XoroshiroRandomSplitter;
 
 /// Initialize the thread-local Perlin sampler with the given seed.
 /// Must be called before any perlin() calls in this thread.
-pub use crate::utils::set_perlin_seed;
+// pub use crate::utils::set_perlin_seed;
 
 // Helper noise / interpolation functions
 // pub fn hermite(t: f32, p0: f32, p1: f32, m0: f32, m1: f32) -> f32 {
@@ -26,6 +24,14 @@ pub use crate::utils::set_perlin_seed;
 //         + (-2.0 * t3 + 3.0 * t2) * p1
 //         + (t3 - t2) * m1
 // }
+
+#[derive(Copy, Clone, Debug)]
+pub struct Config {
+    pub origin: Vec3,
+    pub origin_scale: Vec3,
+    pub position_scale: Vec3,
+    pub dimensions: (i32, i32, i32),
+}
 
 #[inline(always)]
 pub fn hermite(t: f32, p0: f32, p1: f32, m0: f32, m1: f32, h_minus_g: f32) -> f32 {
@@ -69,7 +75,7 @@ pub fn advanced_hermite<const N: usize>(
         return value + derivative * (coordinate - location);
     }
     let index_minus_1 = index - 1;
-    let h_minus_g = spline_values[index] - spline_values[index_minus_1];
+    let h_minus_g = spline_locations[index] - spline_locations[index_minus_1];
     let t = (coordinate - spline_locations[index_minus_1])
         / (spline_locations[index] - spline_locations[index_minus_1]);
     let value_minus_1 = spline_values[index_minus_1];
@@ -123,6 +129,11 @@ pub fn make_buffer<const C: usize>() -> Box<[f64; C]> {
     unsafe { buffer.assume_init() }
 }
 
+pub fn make_boxed<T>() -> Box<T> {
+    let boxed = Box::new_uninit();
+    unsafe { boxed.assume_init() }
+}
+
 pub fn make_permutation_table(
     seed: i64,
     seed_low_1: i64,
@@ -130,7 +141,7 @@ pub fn make_permutation_table(
     iteration_count: i64,
     seed_low_2: i64,
     seed_high_2: i64,
-) -> Box<PerlinNoiseSampler> {
+) -> PerlinNoiseSampler {
     let mut rngparent =
         Xoroshiro128PlusPlusRandom::from_seed(&create_xoroshiro_seed(seed)).next_splitter();
     let mut rng1 = rngparent.split(seed_low_1, seed_high_1);
@@ -142,7 +153,7 @@ pub fn make_permutation_table(
 
     let mut rng2 = rng1_split.split(seed_low_2, seed_high_2);
 
-    Box::new(create_perlin_noise_sampler(&mut rng2))
+    create_perlin_noise_sampler(&mut rng2)
 }
 
 // ---------------------------------------------------------------------------
@@ -740,6 +751,7 @@ pub fn create_legacy<const NUM: usize>(
 }
 
 /// Port of `InterpolatedNoiseSampler`
+#[derive(Clone)]
 pub struct InterpolatedNoiseSampler {
     pub lower: [PerlinNoiseSampler; 16], // rangeClosed(-15, 0)
     pub upper: [PerlinNoiseSampler; 16], // rangeClosed(-15, 0)
@@ -789,18 +801,28 @@ impl InterpolatedNoiseSampler {
         return base;
     }
 
+    pub fn new(rng: &mut Xoroshiro128PlusPlusRandom) -> InterpolatedNoiseSampler {
+        let mut base: InterpolatedNoiseSampler =
+            unsafe { std::mem::MaybeUninit::uninit().assume_init() };
+        create_legacy(rng, &mut base.lower);
+        create_legacy(rng, &mut base.upper);
+        create_legacy(rng, &mut base.interpolation);
+
+        base
+    }
+
     /// Equivalent to `new InterpolatedNoiseSampler(new Xoroshiro128PlusPlusRandom(0L), ...)`.
-    pub fn create_base3d(seed: i64) -> Box<InterpolatedNoiseSampler> {
+    pub fn create_base3d(seed: i64) -> InterpolatedNoiseSampler {
         let mut rng = Xoroshiro128PlusPlusRandom::from_seed(&create_xoroshiro_seed(seed));
         let mut random_splitter = rng.next_splitter();
 
         let xoroshiro_seed = create_xoroshiro_seed_str("minecraft:terrain");
         let mut rng = random_splitter.split(xoroshiro_seed.seed_lo, xoroshiro_seed.seed_hi);
-        Self::new_boxed(&mut rng)
+        Self::new(&mut rng)
     }
 }
 
-pub fn make_base3d_perm_table(seed: i64) -> Box<InterpolatedNoiseSampler> {
+pub fn make_base3d_perm_table(seed: i64) -> InterpolatedNoiseSampler {
     InterpolatedNoiseSampler::create_base3d(seed)
 }
 
@@ -958,4 +980,164 @@ pub fn binary_search<const N: usize>(arr: [f32; N], target: f32) -> i32 {
         }
     }
     return N as i32;
+}
+
+/*
+public static long hashCode(int x, int y, int z) {
+        long l = x * 3129871 ^ z * 116129781L ^ y;
+        l = l * l * 42317861L + l * 11L;
+        return l >> 16;
+    }
+
+    long l = MathHelper.hashCode(x, y, z);
+            long m = l ^ this.seedLo;
+            return new Xoroshiro128PlusPlusRandom(m, this.seedHi);
+*/
+
+pub fn split_random(
+    rnd: XoroshiroRandomSplitter,
+    x: i32,
+    y: i32,
+    z: i32,
+) -> Xoroshiro128PlusPlusRandom {
+    rnd.split_space(x, y, z)
+}
+
+/*
+private static int blockToCellX(int blockX) {
+            return blockX >> 4;
+        }
+
+        private static int cellToBlockX(int cellX, int offsetInCell) {
+            return (cellX << 4) + offsetInCell;
+        }
+
+        private static int blockToCellY(int blockY) {
+            return Math.floorDiv(blockY, 12);
+        }
+
+        private static int cellToBlockY(int cellY, int offsetInCell) {
+            return cellY * 12 + offsetInCell;
+        }
+
+        private static int blockToCellZ(int blockZ) {
+            return blockZ >> 4;
+        }
+
+        private static int cellToBlockZ(int cellZ, int offsetInCell) {
+            return (cellZ << 4) + offsetInCell;
+        }
+
+*/
+
+pub fn cell_to_block_x(cell_x: i32, offset_in_cell: i32) -> i32 {
+    (cell_x << 4) + offset_in_cell
+}
+
+pub fn block_to_cell_x(block_x: i32) -> i32 {
+    block_x >> 4
+}
+pub fn cell_to_block_y(cell_y: i32, offset_in_cell: i32) -> i32 {
+    cell_y * 12 + offset_in_cell
+}
+
+pub fn block_to_cell_y(block_y: i32) -> i32 {
+    floor_div(block_y, 12)
+}
+
+pub fn floor_div(a: i32, b: i32) -> i32 {
+    if a >= 0 {
+        a / b
+    } else {
+        (a - b + 1) / b
+    }
+}
+
+pub fn cell_to_block_z(cell_z: i32, offset_in_cell: i32) -> i32 {
+    (cell_z << 4) + offset_in_cell
+}
+
+pub fn block_to_cell_z(block_z: i32) -> i32 {
+    block_z >> 4
+}
+
+pub fn random_next_int(rnd: &mut Xoroshiro128PlusPlusRandom, bound: i32) -> i32 {
+    rnd.next_int_bound(bound)
+}
+
+pub fn packed_pos(x: i32, y: i32, z: i32) -> i64 {
+    ((x as i64) & 0x3FFFFFF) << 38 | ((z as i64) & 0x3FFFFFF) << 12 | ((y as i64) & 0xFFF)
+}
+
+pub fn unpack_long_x(packed: i64) -> i32 {
+    ((packed >> 38) & 0x3FFFFFF) as i32
+}
+
+pub fn unpack_long_y(packed: i64) -> i32 {
+    (packed & 0xFFF) as i32
+}
+
+pub fn unpack_long_z(packed: i64) -> i32 {
+    ((packed >> 12) & 0x3FFFFFF) as i32
+}
+
+#[derive(Clone, Copy)]
+pub struct EstimatedSurfaceHeight;
+
+#[derive(Clone, Copy)]
+pub struct Erosion;
+
+#[derive(Clone, Copy)]
+pub struct Depth;
+
+pub fn esh(cache: EstimatedSurfaceHeight, x: i32, z: i32) -> i32 {
+    0 // TODO
+}
+
+pub fn get_block_state_from_packed(packed: i64, y_level: i32) -> i32 {
+    let block_state_var = (packed >> 32) as i32;
+    let fluid_level = (packed & 0xFFFFFFFF) as i32;
+    block_state(block_state_var, fluid_level, y_level)
+}
+
+pub fn block_state(block_state: i32, fluid_level: i32, y_level: i32) -> i32 {
+    if y_level < fluid_level {
+        block_state
+    } else {
+        2 // ID for air block
+    }
+}
+
+pub fn min_i32(a: i32, b: i32) -> i32 {
+    a.min(b)
+}
+
+pub fn max_distance(i: i32, a: i32) -> f64 {
+    // 		return 1.0 - (a - i) / 25.0;
+    1.0 - (a - i) as f64 / 25.0
+}
+
+pub fn erosion(cache: Erosion, x: i32, y: i32, z: i32) -> f64 {
+    0.0 // TODO
+}
+pub fn depth(cache: Depth, x: i32, y: i32, z: i32) -> f64 {
+    0.0 // TODO
+}
+pub fn aquifer_index(
+    start_x: i32,
+    start_y: i32,
+    start_z: i32,
+    end_x: i32,
+    end_z: i32,
+    sy: i32,
+    x: i32,
+    y: i32,
+    z: i32,
+) -> i32 {
+    let x0 = start_x;
+    let z0 = start_z;
+    let sx = end_x - start_x;
+    let sz = end_z - start_z;
+
+    (x - x0) + (y - start_y) * sx + (z - z0) * sx * sy
 }

@@ -191,6 +191,37 @@ impl<'m> DensityType<'m> {
                 writeln!(f, "{}Invert:", pad(indent))?;
                 argument.fmt_with_indent(f, indent + 2)
             }
+            DensityType::Beardify => {
+                writeln!(f, "{}Beardify", pad(indent))
+            }
+            DensityType::Aquifer {
+                final_density,
+                depth,
+                erosion,
+                floodedness,
+                spread,
+                fluid_type,
+                barrier,
+            } => {
+                writeln!(f, "{}Aquifer:", pad(indent))?;
+                writeln!(f, "{}FinalDensity:", pad(indent + 2))?;
+                final_density.fmt_with_indent(f, indent + 4)?;
+                writeln!(f, "{}Depth:", pad(indent + 2))?;
+                depth.fmt_with_indent(f, indent + 4)?;
+                writeln!(f, "{}Erosion:", pad(indent + 2))?;
+                erosion.fmt_with_indent(f, indent + 4)?;
+                writeln!(f, "{}Floodedness:", pad(indent + 2))?;
+                floodedness.fmt_with_indent(f, indent + 4)?;
+                writeln!(f, "{}Spread:", pad(indent + 2))?;
+                spread.fmt_with_indent(f, indent + 4)?;
+                writeln!(f, "{}FluidType:", pad(indent + 2))?;
+                fluid_type.fmt_with_indent(f, indent + 4)?;
+                writeln!(f, "{}Barrier:", pad(indent + 2))?;
+                barrier.fmt_with_indent(f, indent + 4)
+            }
+            DensityType::Custom(name) => {
+                writeln!(f, "{}Custom(name={})", pad(indent), name)
+            }
         }
     }
 

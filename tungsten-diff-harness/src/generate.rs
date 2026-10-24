@@ -2,8 +2,10 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-use tungsten_mc_compile::parse::model::{Density, DensitySource};
-use tungsten_mc_compile::{run_generation_from_ast, CompiledOutput, CompilerConfig, MinecraftCompilerConfig};
+use tungsten_mc_compile::parse::model::Density;
+use tungsten_mc_compile::{
+    run_generation_from_ast, CompiledOutput, CompilerConfig, MinecraftCompilerConfig,
+};
 
 use crate::paths::HarnessConfig;
 use crate::{cuda_build, ffi, oracle, reexport, rust_build};
@@ -56,9 +58,7 @@ pub fn generate_from_source(
     let generated_dir = &config.generated_dir;
     fs::create_dir_all(generated_dir).expect("failed to create generated_dir");
 
-    let backend_config = CompilerConfig::new()
-        .with_rcl(true)
-        .with_cuda(true);
+    let backend_config = CompilerConfig::new().with_rcl(true).with_cuda(true);
 
     let mc_config = MinecraftCompilerConfig::new()
         .with_chunk_size(chunk_size)
@@ -127,11 +127,11 @@ pub fn generate_from_source(
         iters += 1;
         if let Some(&reproduces) = result_cache.get(shrunk.get_density()) {
             if reproduces {
-                println!("  iteration {iters}: cached (still reproduces)"); 
+                println!("  iteration {iters}: cached (still reproduces)");
                 shrinker.mark_last_shrink_successful();
                 continue;
             } else {
-                println!("  iteration {iters}: cached (no longer reproduces)"); 
+                println!("  iteration {iters}: cached (no longer reproduces)");
                 shrinker.mark_last_shrink_successful();
                 continue;
             }
@@ -141,12 +141,12 @@ pub fn generate_from_source(
         if reproduces {
             // Mismatch still reproduces with the smaller tree: keep it.
             shrinker.mark_last_shrink_buggy();
-            result_cache.insert(shrunk.get_density().clone(), true);
+            result_cache.insert(shrunk.get_density(), true);
             println!("  iteration {iters}: kept (still reproduces)");
         } else {
             // Mismatch disappeared: revert and try the next shrink method.
             shrinker.mark_last_shrink_successful();
-            result_cache.insert(shrunk.get_density().clone(), false);
+            result_cache.insert(shrunk.get_density(), false);
             println!("  iteration {iters}: reverted (no longer reproduces)");
         }
 
@@ -155,16 +155,18 @@ pub fn generate_from_source(
         // println!("Total size of memory used: {}mb", bytes / 1024 / 1024);
     }
 
-
     let final_density = shrinker.finish();
     println!("Regenerating minimal reproducing pipeline...");
     bug_reproduces(final_density);
 
     let final_density_node = match final_density {
-        tungsten_mc_compile::parse::model::DensitySource::MultiSamplingDensity { density, .. } => density,
-        tungsten_mc_compile::parse::model::DensitySource::SingleSamplingDensity { density } => density,
+        tungsten_mc_compile::parse::model::DensitySource::MultiSamplingDensity {
+            density, ..
+        } => density,
+        tungsten_mc_compile::parse::model::DensitySource::SingleSamplingDensity { density } => {
+            density
+        }
     };
     println!("Final density function:");
     println!("{}", final_density_node);
 }
-

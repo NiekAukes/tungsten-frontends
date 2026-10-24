@@ -208,6 +208,18 @@ pub fn density_to_json(density: Density) -> Value {
             "type": "minecraft:invert",
             "argument": density_to_json(*argument),
         }),
+        DensityType::Beardify => todo!(),
+        DensityType::Aquifer {
+            // final_density,
+            // depth,
+            // erosion,
+            // floodedness,
+            // spread,
+            // fluid_type,
+            // barrier,
+            ..
+        } => todo!(),
+        DensityType::Custom(_) => todo!(),
     }
 }
 
