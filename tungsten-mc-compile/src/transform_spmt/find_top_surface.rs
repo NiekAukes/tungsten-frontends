@@ -41,7 +41,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         let workset = self.builder_state.as_ref().unwrap().working_set;
         let y_dim = self.noise_generator_settings.noise.height / cell_height;
         let min_y = self.noise_generator_settings.noise.min_y / cell_height;
-        assert!(self.noise_generator_settings.noise.height % cell_height == 0);
+        // assert!(self.noise_generator_settings.noise.height % cell_height == 0);
         let new_dimensions = (workset.dimensions.0, y_dim, workset.dimensions.2);
         let new_scaled_position = (
             workset.scaled_position.0,

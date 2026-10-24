@@ -1,12 +1,11 @@
 [package]
 name = "tungsten-mc-compile"
-version = "0.211.0"
-edition = "2021"
+version = "0.211.1"
+edition = "2024"
 authors = ["Niek Aukes"]
 description = "Minecraft worldgen compiler - parses Minecraft data packs and compiles them to optimized Rust/CUDA code"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/NiekAukes/tungsten-frontends"
-readme = "README.md"
 keywords = ["minecraft", "worldgen", "compiler", "datapack"]
 categories = ["compilers", "game-engines"]
 exclude = [
