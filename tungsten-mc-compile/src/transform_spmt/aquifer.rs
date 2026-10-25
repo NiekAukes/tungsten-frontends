@@ -1,5 +1,4 @@
 use tungsten_wg::extern_fns;
-use tungsten_wg::spmt::builder::floor;
 use tungsten_wg::spmt::DensityFunction;
 use tungsten_wg::spmt::DensityFunctionRef;
 use tungsten_wg::spmt::DensityInput;
@@ -9,21 +8,22 @@ use tungsten_wg::spmt::HostInput;
 use tungsten_wg::spmt::Interned;
 use tungsten_wg::spmt::Var;
 use tungsten_wg::spmt::VariableType;
-use tungsten_wg::spmt::VariableType::Vec3;
 use tungsten_wg::spmt::VariableType::F64;
 use tungsten_wg::spmt::VariableType::I32;
 use tungsten_wg::spmt::VariableType::I64;
+use tungsten_wg::spmt::VariableType::Vec3;
+use tungsten_wg::spmt::builder::floor;
 use tungsten_wg::vec3;
 use tungsten_wg::{body, build, spmt::Expression};
 
 use crate::parse::model::DensityType;
 use crate::parse::model::DensityType::Aquifer;
-use crate::transform_spmt::newvar;
 use crate::transform_spmt::InlineMode;
 use crate::transform_spmt::ScalingSet;
+use crate::transform_spmt::newvar;
 use crate::{parse::model::Density, transform_spmt::density::DensityBuilder};
-use tungsten_wg::spmt::builder::SPMTBuilder;
 use tungsten_wg::spmt::Statement;
+use tungsten_wg::spmt::builder::SPMTBuilder;
 
 const DUMMY_DENSITIES: bool = false;
 
@@ -1745,11 +1745,7 @@ fn get_noise_based_fluid_level<'a, 'm>(
 }
 
 fn floordiv(a: i32, b: i32) -> i32 {
-    if a >= 0 {
-        a / b
-    } else {
-        (a - b + 1) / b
-    }
+    if a >= 0 { a / b } else { (a - b + 1) / b }
 }
 
 fn const_literal_array<'m>(values: Vec<impl Into<Expression<'m>>>) -> Expression<'m> {

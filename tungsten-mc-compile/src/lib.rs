@@ -30,11 +30,13 @@
 use std::path::PathBuf;
 
 use bumpalo::Bump;
-use tungsten_wg::compile;
-pub use tungsten_wg::{CompiledOutput, CompilerConfig};
 
-use crate::parse::MinecraftData;
+use crate::{
+    compile::{CompiledOutput, do_compile},
+    parse::MinecraftData,
+};
 
+mod compile;
 pub mod config_load;
 pub mod parse;
 pub mod shrink;
@@ -59,8 +61,6 @@ pub struct MinecraftCompilerConfig {
     pub mod_path: Option<String>,
     /// Chunk size for world generation (typically 16 for Minecraft)
     pub chunk_size: usize,
-    /// Backend compiler configuration (controls target language, optimizations, etc.)
-    pub backend_config: CompilerConfig,
 }
 
 impl Default for MinecraftCompilerConfig {
@@ -68,7 +68,6 @@ impl Default for MinecraftCompilerConfig {
         Self {
             mod_path: None,
             chunk_size: 16,
-            backend_config: CompilerConfig::default().with_rcl(true),
         }
     }
 }
@@ -113,29 +112,6 @@ impl MinecraftCompilerConfig {
     /// ```
     pub fn with_chunk_size(mut self, size: usize) -> Self {
         self.chunk_size = size;
-        self
-    }
-
-    /// Sets the backend compiler configuration.
-    ///
-    /// This controls the target language (Rust/CUDA), optimizations, and other
-    /// backend-specific settings.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tungsten_mc_compile::MinecraftCompilerConfig;
-    /// use tungsten_wg::CompilerConfig;
-    ///
-    /// let backend = CompilerConfig::default()
-    ///     .with_rcl(true)
-    ///     .with_cuda(true);
-    ///
-    /// let config = MinecraftCompilerConfig::new()
-    ///     .with_backend_config(backend);
-    /// ```
-    pub fn with_backend_config(mut self, config: CompilerConfig) -> Self {
-        self.backend_config = config;
         self
     }
 }
@@ -208,8 +184,7 @@ pub fn run_generation(config: &MinecraftCompilerConfig) -> CompiledOutput {
     let program = transformer.transform(noise_generator);
 
     // 4. Delegate to the new compiler library
-    compile(&program, &config.backend_config)
-        .expect("Failed to compile SPMT program into target backends")
+    do_compile(&program)
 }
 
 pub fn run_parse<'m>(arena: &'m Bump, config: &MinecraftCompilerConfig) -> MinecraftData<'m> {
@@ -236,7 +211,7 @@ pub fn run_parse<'m>(arena: &'m Bump, config: &MinecraftCompilerConfig) -> Minec
     mcdata
 }
 
-pub fn run_generation_from_ast(config: &CompilerConfig, ast: &MinecraftData) -> CompiledOutput {
+pub fn run_generation_from_ast(ast: &MinecraftData) -> CompiledOutput {
     let mcdata = ast;
 
     let noise_generator = mcdata
@@ -250,5 +225,6 @@ pub fn run_generation_from_ast(config: &CompilerConfig, ast: &MinecraftData) -> 
     let program = transformer.transform(noise_generator);
 
     // 4. Delegate to the new compiler library
-    compile(&program, &config).expect("Failed to compile SPMT program into target backends")
+    // compile(&program, &config).expect("Failed to compile SPMT program into target backends")
+    do_compile(&program)
 }

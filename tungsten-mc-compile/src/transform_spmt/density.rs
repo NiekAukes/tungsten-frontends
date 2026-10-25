@@ -6,23 +6,23 @@ use std::{
 use crate::{
     parse::model::{Density, DensityType, NoiseGeneratorSettings, NormalNoise},
     transform_spmt::{
-        anonvar, newvar,
+        BuilderState, InlineMode, anonvar, newvar,
         noise::{lower_normal_noise, lower_old_blended_noise},
-        prefixvar, BuilderState, InlineMode,
+        prefixvar,
     },
 };
 use tungsten_wg::{
     body,
-    orchestrate::Scale,
+    interface::Scale,
     pos3,
     spmt::{
+        VariableType::{F64, Vec3},
         builder::SPMTBuilder,
         model::{
             BinaryOperator, DensityFunction, DensityFunctionRef, DensityInput, Expression,
             Function, FunctionRef, Name, PermutationTableInput, Statement, Var, Variable,
             VariableType,
         },
-        VariableType::{Vec3, F64},
     },
 };
 
@@ -2349,7 +2349,9 @@ impl<'a, 'm> SPMTBuilder<'m> for DensityBuilder<'a, 'm> {
         _t: VariableType,
         _value: impl Into<tungsten_wg::spmt::Expression<'m>>,
     ) -> Var<'m> {
-        panic!("DensityBuilder does not support constants via the constant() method, use add_constant() instead");
+        panic!(
+            "DensityBuilder does not support constants via the constant() method, use add_constant() instead"
+        );
     }
 
     fn density(

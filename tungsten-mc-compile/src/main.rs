@@ -5,11 +5,11 @@ use clap::Parser;
 
 use tungsten_wg::spmt::model::SPMT;
 use tungsten_wg::spmt::pretty::Printer;
-// Import the new library API
-use tungsten_wg::{compile, CompilerConfig};
 
 use tungsten_wg::spmt::{dag::DensityDAG, model::Addr, pretty::PrettyPrint};
 
+mod compile;
+use compile::do_compile;
 pub mod config_load;
 pub mod parse;
 pub mod transform_spmt;
@@ -100,24 +100,15 @@ fn run_with_args(args: Args) {
         emit_intermediate_files(&mcdata, &program);
     }
 
-    // 4. Configure the Compiler
-    let config = CompilerConfig::new()
-        .with_rcl(false)
-        .with_rcl_new(true)
-        .with_cuda(args.cuda) // Now respects the CLI flag
-        .rcl_module_names("density_function", "orchestration")
-        .with_wave_orchestration_graph(args.emit_intermediates);
-
-    // 5. Run the Compiler Library
+    // 4. Run the Compiler
     println!("Compiling SPMT program across target backends...");
-    let compiled_output =
-        compile(&program, &config).expect("Fatal error during codegen compilation");
+    let compiled_output = do_compile(&program);
 
-    // 6. Write Outputs to Disk
+    // 5. Write Outputs to Disk
 
     // Fix: Use `with_extension` instead of `join` to properly append `.rs` to the filename
     let real_path = args.output.join("density").with_extension("rs");
-    println!("Preparing to write RCL output to '{}'", real_path.display());
+    println!("Preparing to write Rust output to '{}'", real_path.display());
     if let Some(folder) = real_path.parent() {
         if !folder.as_os_str().is_empty() {
             std::fs::create_dir_all(folder).expect("Unable to create output directory");
@@ -136,14 +127,12 @@ fn run_with_args(args: Args) {
     }
 
     if args.rust || (!args.cuda && !args.rust) {
-        let Some(rcl_code) = compiled_output.rcl_new else {
-            eprintln!("No RCL output was generated.");
+        let Some(rust_code) = compiled_output.rust_code else {
+            eprintln!("No Rust output was generated.");
             return;
         };
-        // --- Write RCL ---
-        // Safely write the newly combined RCL output block
-        std::fs::write(&real_path, rcl_code).unwrap();
-        println!("Generated inline RCL at '{}'", real_path.display());
+        std::fs::write(&real_path, rust_code).unwrap();
+        println!("Generated Rust output at '{}'", real_path.display());
     }
     if args.cuda {
         // --- Write CUDA ---

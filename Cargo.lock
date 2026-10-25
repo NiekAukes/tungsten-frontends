@@ -359,6 +359,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "tungsten-codegen"
+version = "0.1.2"
+
+[[package]]
 name = "tungsten-diff-harness"
 version = "0.1.0"
 dependencies = [
@@ -368,6 +372,27 @@ dependencies = [
  "libloading",
  "serde_json",
  "tungsten-mc-compile",
+]
+
+[[package]]
+name = "tungsten-interface"
+version = "0.1.2"
+dependencies = [
+ "thiserror",
+ "tungsten-ir",
+]
+
+[[package]]
+name = "tungsten-ir"
+version = "0.1.2"
+
+[[package]]
+name = "tungsten-legacy"
+version = "0.1.2"
+dependencies = [
+ "bumpalo",
+ "tungsten-codegen",
+ "tungsten-ir",
 ]
 
 [[package]]
@@ -391,14 +416,34 @@ dependencies = [
 ]
 
 [[package]]
-name = "tungsten-wg"
+name = "tungsten-optimizer"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46f19ec001c9b62c3c2967bd05307a99b90f4334b8aaf5bdde6e5e4827ebd0ad"
+dependencies = [
+ "tungsten-ir",
+]
+
+[[package]]
+name = "tungsten-rust"
+version = "0.1.2"
 dependencies = [
  "bumpalo",
  "md5 0.8.0",
+ "tungsten-codegen",
+ "tungsten-interface",
+ "tungsten-ir",
+]
+
+[[package]]
+name = "tungsten-wg"
+version = "0.1.2"
+dependencies = [
  "thiserror",
+ "tungsten-codegen",
+ "tungsten-interface",
+ "tungsten-ir",
+ "tungsten-legacy",
+ "tungsten-optimizer",
+ "tungsten-rust",
 ]
 
 [[package]]
