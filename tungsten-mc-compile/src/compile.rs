@@ -1,6 +1,6 @@
 // --- Output Structure ---
 
-use tungsten_wg::{RustConfig, compile};
+use tungsten_wg::{JavaConfig, RustConfig, compile};
 
 /// Holds the generated raw source code strings for whichever backends were enabled
 /// in the [`CompilerConfig`].
@@ -23,8 +23,24 @@ pub struct CompiledOutput {
 pub fn do_compile(program: &tungsten_wg::spmt::SPMT) -> CompiledOutput {
     let optimized_program = tungsten_wg::spmt::conversion::convert(&program).unwrap();
     let mut rust_backend = RustConfig::default().to_backend();
-    compile(&optimized_program, &mut [&mut rust_backend])
-        .expect("Failed to compile SPMT program into Rust");
+    let mut java_backend = JavaConfig::default().to_backend();
+    compile(
+        &optimized_program,
+        &mut [&mut rust_backend, &mut java_backend],
+    )
+    .expect("Failed to compile SPMT program into Rust");
+
+    let java_code = java_backend.output().unwrap();
+    if java_code.warnings.len() > 0 {
+        eprintln!("Java compilation warnings:");
+        for warning in &java_code.warnings {
+            eprintln!("{}", warning);
+        }
+    }
+
+    // print to a file
+    std::fs::write("GeneratedWorldgen.java", &java_code.source)
+        .expect("Failed to write Java code to file");
 
     let rust_code = rust_backend.output();
     CompiledOutput {

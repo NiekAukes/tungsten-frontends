@@ -387,6 +387,15 @@ name = "tungsten-ir"
 version = "0.1.2"
 
 [[package]]
+name = "tungsten-java"
+version = "0.1.2"
+dependencies = [
+ "tungsten-interface",
+ "tungsten-ir",
+ "tungsten-rust",
+]
+
+[[package]]
 name = "tungsten-legacy"
 version = "0.1.2"
 dependencies = [
@@ -441,6 +450,7 @@ dependencies = [
  "tungsten-codegen",
  "tungsten-interface",
  "tungsten-ir",
+ "tungsten-java",
  "tungsten-legacy",
  "tungsten-optimizer",
  "tungsten-rust",
