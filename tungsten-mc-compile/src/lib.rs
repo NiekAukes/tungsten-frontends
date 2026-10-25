@@ -31,10 +31,9 @@ use std::path::PathBuf;
 
 use bumpalo::Bump;
 
-use crate::{
-    compile::{CompiledOutput, do_compile},
-    parse::MinecraftData,
-};
+use crate::{compile::do_compile, parse::MinecraftData};
+
+pub use crate::compile::CompiledOutput;
 
 mod compile;
 pub mod config_load;

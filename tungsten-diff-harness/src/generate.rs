@@ -3,9 +3,7 @@ use std::fs;
 use std::path::Path;
 
 use tungsten_mc_compile::parse::model::Density;
-use tungsten_mc_compile::{
-    run_generation_from_ast, CompiledOutput, CompilerConfig, MinecraftCompilerConfig,
-};
+use tungsten_mc_compile::{run_generation_from_ast, CompiledOutput, MinecraftCompilerConfig};
 
 use crate::paths::HarnessConfig;
 use crate::{cuda_build, ffi, oracle, reexport, rust_build};
@@ -13,10 +11,10 @@ use crate::{cuda_build, ffi, oracle, reexport, rust_build};
 /// Writes the three generated source files a compiled pipeline produces
 /// into `generated_dir`.
 fn write_generated(generated_dir: &Path, output: CompiledOutput) {
-    let rcl = output
-        .rcl
-        .expect("compiler did not produce RCL (Rust) output");
-    fs::write(generated_dir.join("density.rs"), rcl).expect("failed to write density.rs");
+    let rust_code = output
+        .rust_code
+        .expect("compiler did not produce Rust output");
+    fs::write(generated_dir.join("density.rs"), rust_code).expect("failed to write density.rs");
 
     let cuda_density_function = output
         .cuda_density_function
@@ -58,11 +56,7 @@ pub fn generate_from_source(
     let generated_dir = &config.generated_dir;
     fs::create_dir_all(generated_dir).expect("failed to create generated_dir");
 
-    let backend_config = CompilerConfig::new().with_rcl(true).with_cuda(true);
-
-    let mc_config = MinecraftCompilerConfig::new()
-        .with_chunk_size(chunk_size)
-        .with_backend_config(backend_config);
+    let mc_config = MinecraftCompilerConfig::new().with_chunk_size(chunk_size);
     let mc_config = if let Some(source_dir) = source_dir {
         mc_config.with_mod_path(source_dir.to_string_lossy())
     } else {
@@ -77,7 +71,7 @@ pub fn generate_from_source(
     let ast = tungsten_mc_compile::run_parse(&arena, &mc_config);
 
     if single_run {
-        let output = run_generation_from_ast(&mc_config.backend_config, &ast);
+        let output = run_generation_from_ast(&ast);
         write_generated(generated_dir, output);
         return;
     }
@@ -100,7 +94,7 @@ pub fn generate_from_source(
             .noise_router
             .final_density = final_density;
 
-        let output = run_generation_from_ast(&mc_config.backend_config, &ast);
+        let output = run_generation_from_ast(&ast);
         write_generated(generated_dir, output);
 
         rust_build::build_rust_cdylib(config);
