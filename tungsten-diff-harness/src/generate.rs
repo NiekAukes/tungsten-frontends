@@ -5,41 +5,53 @@ use std::path::Path;
 use tungsten_mc_compile::parse::model::Density;
 use tungsten_mc_compile::{run_generation_from_ast, CompiledOutput, MinecraftCompilerConfig};
 
-use crate::paths::HarnessConfig;
-use crate::{cuda_build, ffi, oracle, reexport, rust_build};
+use crate::paths::{HarnessConfig, Target};
+use crate::{ffi, oracle, reexport};
 
-/// Writes the three generated source files a compiled pipeline produces
-/// into `generated_dir`.
-fn write_generated(generated_dir: &Path, output: CompiledOutput) {
+/// Writes the generated sources of every selected target into
+/// `generated_dir`. A source the compiler didn't produce is only an error
+/// when a target that needs it is selected.
+fn write_generated(config: &HarnessConfig, output: CompiledOutput) {
+    let generated_dir = &config.generated_dir;
+
     let rust_code = output
         .rust_code
         .expect("compiler did not produce Rust output");
     fs::write(generated_dir.join("density.rs"), rust_code).expect("failed to write density.rs");
 
-    let cuda_density_function = output
-        .cuda_density_function
-        .expect("compiler did not produce CUDA density_function output");
-    fs::write(
-        generated_dir.join("density_function.cu"),
-        cuda_density_function,
-    )
-    .expect("failed to write density_function.cu");
+    if config.has_target(Target::Java) {
+        let java_code = output
+            .java_code
+            .expect("Java target selected but the compiler produced no Java output");
+        fs::write(config.java_source(), java_code).expect("failed to write GeneratedWorldgen.java");
+    }
 
-    let cuda_orchestration = output
-        .cuda_orchestration
-        .expect("compiler did not produce CUDA orchestration output");
-    fs::write(generated_dir.join("orchestration.cu"), cuda_orchestration)
-        .expect("failed to write orchestration.cu");
+    if config.has_target(Target::Cuda) {
+        let cuda_density_function = output
+            .cuda_density_function
+            .expect("CUDA target selected but the compiler produced no CUDA density_function output");
+        fs::write(
+            generated_dir.join("density_function.cu"),
+            cuda_density_function,
+        )
+        .expect("failed to write density_function.cu");
+
+        let cuda_orchestration = output
+            .cuda_orchestration
+            .expect("CUDA target selected but the compiler produced no CUDA orchestration output");
+        fs::write(generated_dir.join("orchestration.cu"), cuda_orchestration)
+            .expect("failed to write orchestration.cu");
+    }
 }
 
-/// Phase 0: compiles a Minecraft datapack source folder into a fresh
-/// `density.rs` / `density_function.cu` / `orchestration.cu` triple inside
-/// `generated_dir`, using tungsten-mc-compile directly as a library (no
+/// Phase 0: compiles a Minecraft datapack source folder (or just vanilla) into
+/// fresh `density.rs` / `GeneratedWorldgen.java` (and, for the CUDA target,
+/// `density_function.cu` / `orchestration.cu`) inside `generated_dir`, using tungsten-mc-compile directly as a library (no
 /// subprocess, no CLI file-naming quirks to work around).
 ///
-/// If the resulting Rust/CUDA pipelines disagree, this also runs a
+/// If the resulting pipelines disagree, this also runs a
 /// shrink-and-test loop that repeatedly regenerates, rebuilds, and reruns
-/// both pipelines against smaller and smaller candidate `final_density`
+/// the selected pipelines against smaller and smaller candidate `final_density`
 /// trees, keeping only the reductions that still reproduce the mismatch.
 /// Passing `single_run = true` skips this shrink loop entirely: the source
 /// is compiled once and control returns to the caller to build and run the
@@ -72,7 +84,7 @@ pub fn generate_from_source(
 
     if single_run {
         let output = run_generation_from_ast(&ast);
-        write_generated(generated_dir, output);
+        write_generated(config, output);
         return;
     }
 
@@ -85,7 +97,7 @@ pub fn generate_from_source(
         .final_density;
 
     // Substitutes `final_density` into the AST, regenerates and rebuilds
-    // both pipelines from scratch, and reports whether they still disagree
+    // the selected pipelines from scratch, and reports whether they still disagree
     // (i.e. whether the bug still reproduces with this candidate).
     let mut bug_reproduces = |final_density| {
         ast.noise_settings
@@ -95,17 +107,16 @@ pub fn generate_from_source(
             .final_density = final_density;
 
         let output = run_generation_from_ast(&ast);
-        write_generated(generated_dir, output);
+        write_generated(config, output);
 
-        rust_build::build_rust_cdylib(config);
-        cuda_build::build_cuda_shared_lib(config);
-        let result = ffi::run_both_pipelines(config);
-        !oracle::pipelines_agree(&result, config.epsilon)
+        ffi::build_targets(config);
+        let result = ffi::run_pipelines(config);
+        !oracle::pipelines_agree(&result, config)
     };
 
     println!("Confirming the mismatch reproduces before shrinking...");
     if !bug_reproduces(initial_density) {
-        println!("Rust and CUDA pipelines already agree; nothing to shrink.");
+        println!("The selected pipelines already agree; nothing to shrink.");
         return;
     }
 

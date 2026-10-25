@@ -36,6 +36,18 @@ include!(env!("DENSITY_RS_PATH"));
 /// Number of `f64` samples in a 16x384x16 final-density chunk.
 pub const DIMS: usize = 16 * 384 * 16;
 
+/// `HostConsts` with no structure pieces or jigsaws. `final_density` doesn't
+/// read them. Kept as a local helper, not an `impl Default`, because the
+/// generated code owns the type and `tungsten-mc` already implements `Default`
+/// for it in its own crate.
+fn empty_host_consts() -> orchestration::HostConsts {
+    orchestration::HostConsts {
+        base_box: BlockBox::default(),
+        jigsaw_array: [Jigsaw::default(); 500],
+        piece_array: [Piece::default(); 500],
+    }
+}
+
 /// FFI entry point loaded by the diff harness via `libloading`.
 ///
 /// Writes `DIMS` f64 values to `out_ptr`. `out_len` must equal `DIMS`;
@@ -58,8 +70,9 @@ pub extern "C" fn run_rust_pipeline(
         y: origin_y,
         z: origin_z,
     };
-    let perm_tables = utils::set_perlin_seed(seed);
-    let result = orchestration::orchestrate_final_density(origin, perm_tables);
+    let host_consts = empty_host_consts();
+    let mut orchestration = orchestration::Orchestration::new(seed);
+    let result = orchestration.orchestrate_final_density(origin, &host_consts);
 
     // SAFETY: caller (the diff harness) guarantees out_ptr points at a
     // writable buffer of at least `out_len` f64s, checked above.

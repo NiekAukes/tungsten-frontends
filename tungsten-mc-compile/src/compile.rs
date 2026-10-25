@@ -16,6 +16,9 @@ pub struct CompiledOutput {
     /// The generated CUDA host C++ code handling memory and kernel launch orchestration.
     pub cuda_orchestration: Option<String>,
 
+    /// The generated Java source (`GeneratedWorldgen.java`).
+    pub java_code: Option<String>,
+
     /// The generated wave orchestration graph.
     pub wave_orchestration_graph: Option<String>,
 }
@@ -38,15 +41,12 @@ pub fn do_compile(program: &tungsten_wg::spmt::SPMT) -> CompiledOutput {
         }
     }
 
-    // print to a file
-    std::fs::write("GeneratedWorldgen.java", &java_code.source)
-        .expect("Failed to write Java code to file");
-
     let rust_code = rust_backend.output();
     CompiledOutput {
         rust_code: rust_code.map(|s| s.full_source.clone()),
         cuda_density_function: None,
         cuda_orchestration: None,
+        java_code: Some(java_code.source.clone()),
         wave_orchestration_graph: None,
     }
 }

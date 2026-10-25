@@ -1,6 +1,7 @@
 mod cuda_build;
 mod ffi;
 mod generate;
+mod java_build;
 mod oracle;
 mod paths;
 mod reexport;
@@ -12,6 +13,8 @@ use paths::{Cli, HarnessConfig};
 fn main() {
     let cli = Cli::parse();
     let config = HarnessConfig::from_cli(&cli);
+    let target_names: Vec<_> = config.targets.iter().map(|t| t.name()).collect();
+    println!("Targets: {}", target_names.join(", "));
     println!("Phase 0: compiling generated sources...");
     let path = if let Some(source_dir) = &cli.source_dir {
         Some(source_dir.as_path())
@@ -19,21 +22,19 @@ fn main() {
         None
     };
     generate::generate_from_source(&config, path, cli.chunk_size, cli.single_run);
-    println!("Compiling Rust and CUDA pipelines into shared libraries...");
-    rust_build::build_rust_cdylib(&config);
-    cuda_build::build_cuda_shared_lib(&config);
+    println!("Building the selected pipelines...");
+    ffi::build_targets(&config);
 
-    println!("Loading both libraries and executing the pipelines...");
-    let result = ffi::run_both_pipelines(&config);
-    // let result = ffi::run_rust_pipeline(&config);
-
-    println!(
-        "Comparing {} samples (epsilon={:e})...",
-        ffi::DIMS,
-        config.epsilon
-    );
-    oracle::assert_pipelines_agree(&result, config.epsilon);
+    println!("Executing the pipelines...");
+    let outputs = ffi::run_pipelines(&config);
     println!("Rust pipeline produced {} samples.", ffi::DIMS);
 
-    println!("OK: Rust and CUDA pipelines agree within tolerance.");
+    println!("Comparing {} samples against the Rust reference...", ffi::DIMS);
+    let compared = oracle::assert_pipelines_agree(&outputs, &config);
+    if compared.is_empty() {
+        println!("No target to compare: only the Rust reference was selected.");
+        return;
+    }
+    let names: Vec<_> = compared.iter().map(|t| t.name()).collect();
+    println!("OK: Rust agrees with {}.", names.join(", "));
 }

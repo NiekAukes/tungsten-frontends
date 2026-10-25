@@ -134,6 +134,11 @@ fn run_with_args(args: Args) {
         std::fs::write(&real_path, rust_code).unwrap();
         println!("Generated Rust output at '{}'", real_path.display());
     }
+    if let Some(java_code) = &compiled_output.java_code {
+        let java_path = args.output.join("GeneratedWorldgen.java");
+        std::fs::write(&java_path, java_code).unwrap();
+        println!("Generated Java output at '{}'", java_path.display());
+    }
     if args.cuda {
         // --- Write CUDA ---
         let cuda_base = args.output;
