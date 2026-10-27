@@ -1,6 +1,8 @@
 // --- Output Structure ---
 
-use tungsten_wg::{JavaConfig, RustConfig, compile};
+use tungsten_wg::{
+    InspectBackend, InspectConfig, JavaConfig, RustConfig, compile, optimizer::perform_inline,
+};
 
 /// Holds the generated raw source code strings for whichever backends were enabled
 /// in the [`CompilerConfig`].
@@ -24,12 +26,15 @@ pub struct CompiledOutput {
 }
 
 pub fn do_compile(program: &tungsten_wg::spmt::SPMT) -> CompiledOutput {
-    let optimized_program = tungsten_wg::spmt::conversion::convert(&program).unwrap();
+    let mut optimized_program = tungsten_wg::spmt::conversion::convert(&program).unwrap();
+    perform_inline(&mut optimized_program);
+
     let mut rust_backend = RustConfig::default().to_backend();
     let mut java_backend = JavaConfig::default().to_backend();
+    let mut inspect = InspectBackend::new(InspectConfig::default());
     compile(
         &optimized_program,
-        &mut [&mut rust_backend, &mut java_backend],
+        &mut [&mut rust_backend, &mut java_backend, &mut inspect],
     )
     .expect("Failed to compile SPMT program into Rust");
 
@@ -39,6 +44,16 @@ pub fn do_compile(program: &tungsten_wg::spmt::SPMT) -> CompiledOutput {
         for warning in &java_code.warnings {
             eprintln!("{}", warning);
         }
+    }
+
+    let inspect_output = inspect.output().unwrap();
+    // write all files to /target/inspect
+    for (filename, content) in &inspect_output.files {
+        let path = std::path::Path::new("target/inspect").join(filename);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(path, content).unwrap();
     }
 
     let rust_code = rust_backend.output();

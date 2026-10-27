@@ -375,6 +375,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tungsten-inspect"
+version = "0.1.2"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tungsten-interface",
+ "tungsten-ir",
+ "tungsten-optimizer",
+]
+
+[[package]]
 name = "tungsten-interface"
 version = "0.1.2"
 dependencies = [
@@ -448,6 +459,7 @@ version = "0.1.2"
 dependencies = [
  "thiserror",
  "tungsten-codegen",
+ "tungsten-inspect",
  "tungsten-interface",
  "tungsten-ir",
  "tungsten-java",
