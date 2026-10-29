@@ -1,4 +1,5 @@
 use tungsten_wg::extern_fns;
+use tungsten_wg::ir::VariableType::I8;
 use tungsten_wg::spmt::DensityFunction;
 use tungsten_wg::spmt::DensityFunctionRef;
 use tungsten_wg::spmt::DensityInput;
@@ -40,7 +41,7 @@ impl<'a, 'm> DensityBuilder<'a, 'm> {
         let DensityType::Aquifer { .. } = *density else {
             panic!("Expected Aquifer density");
         };
-        self.density_function.return_type = I32;
+        self.density_function.return_type = I8;
 
         let density_input = self.lower_density_input(
             density,
@@ -114,7 +115,7 @@ extern_fns!(
     abs(value: F64): F64,
     abs_i32(value: I32): I32,
     min_i32(a: I32, b: I32): I32,
-    max_distance(a: F64, b: F64): F64,
+    max_distance(a: I32, b: I32): F64,
     get_block_state_from_packed(closest_fluid_level: I64, y_level: I32): I32,
     get_fluid_level_from_packed(packed: I64): I32,
     block_state(state: I32, fluid_level: I32, y_level: I32): I32,
@@ -593,7 +594,7 @@ pub fn generate_general_aquifer_sampler<'a, 'm>(
         builder.add_variable(*v);
     }
 
-    builder.density_function.return_type = I32;
+    builder.density_function.return_type = I8;
 
     result_state.shl(1).bitor(needs_fluid_tick.cast(I32))
 }
@@ -1068,10 +1069,12 @@ fn generate_water_levels<'a, 'm>(
         builder.neutral_index_override = true;
         let bs = builder.builder_state.as_mut().unwrap();
         bs.rpos_offset = (-16.0, 0.0, -16.0);
+        bs.inline_mode = InlineMode::AlwaysUnless2D;
         let original_working_set = bs.working_set.clone();
         let original_flat_cache_set = bs.flatcache_set.clone();
+        let world_height = builder.noise_generator_settings.noise.height;
         bs.working_set = ScalingSet {
-            dimensions: (48, 384, 48),
+            dimensions: (48, world_height, 48),
             scaled_position: (1.0, 1.0, 1.0),
             scaled_origin: (1.0, 1.0, 1.0),
         };
@@ -1088,6 +1091,7 @@ fn generate_water_levels<'a, 'm>(
         bs.working_set = original_working_set;
         bs.flatcache_set = original_flat_cache_set;
         builder.neutral_index_override = false;
+        bs.inline_mode = InlineMode::Default;
         (e, d)
     };
 

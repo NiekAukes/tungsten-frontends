@@ -236,13 +236,15 @@ impl XoroshiroRandomSplitter {
         Xoroshiro128PlusPlusRandom::from_seed(&new_seed)
     }
 
+    /// Port of XoroshiroRandomSplitter.split(int, int, int): MathHelper.hashCode(x, y, z), XORed
+    /// into the low seed half only.
     pub fn split_space(&self, x: i32, y: i32, z: i32) -> Xoroshiro128PlusPlusRandom {
-        let mut l: i64 = (x * 3129871 ^ z * 116129781 ^ y) as i64;
-        l = l * l * 42317861 + l * 11;
+        // `x * 3129871` is an int multiply in Java; the z term is a long multiply.
+        let mut l: i64 =
+            (x.wrapping_mul(3129871) as i64) ^ (z as i64).wrapping_mul(116129781) ^ (y as i64);
+        l = l.wrapping_mul(l).wrapping_mul(42317861).wrapping_add(l.wrapping_mul(11));
         l >>= 16;
-        let mut m = l ^ self.seed.seed_lo;
-        let new_seed = self.seed.split_with(m, self.seed.seed_hi);
-        Xoroshiro128PlusPlusRandom::from_seed(&new_seed)
+        Xoroshiro128PlusPlusRandom::new(l ^ self.seed.seed_lo, self.seed.seed_hi)
     }
 }
 

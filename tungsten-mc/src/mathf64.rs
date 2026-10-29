@@ -646,7 +646,7 @@ pub fn biome_column_index(pos3: Pos3, sx: i32, sz: i32) -> usize {
         y: 0,
         z: pos3.z >> 2,
     };
-    flat_y_zero_index(npos, sz, sx)
+    flat_y_zero_index(npos, sx, sz)
 }
 
 pub fn preliminary_surface_index(

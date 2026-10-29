@@ -41,7 +41,11 @@ public final class Helpers {
 
     // Rust: tungsten-mc/src/utilsf64.rs perlin
     public static double perlin(Vec3 p, PerlinNoiseSampler sampler) {
-        return sampler.sample(p.x, p.y, p.z);
+        // One octave of OctavePerlinNoiseSampler.sample: p is already position * frequency.
+        return sampler.sample(
+            InterpolatedNoiseSampler.maintain_precision(p.x),
+            InterpolatedNoiseSampler.maintain_precision(p.y),
+            InterpolatedNoiseSampler.maintain_precision(p.z));
     }
 
     // Rust: tungsten-mc/src/utilsf64.rs base3d_noise

@@ -82,6 +82,7 @@ impl ScalingSet {
 pub enum InlineMode {
     Default,
     AlwaysUnless2D,
+    Always,
     FlatCacheWeirdness,
 }
 
@@ -89,12 +90,12 @@ impl InlineMode {
     pub fn non_2d(&self) -> bool {
         matches!(
             self,
-            InlineMode::AlwaysUnless2D | InlineMode::FlatCacheWeirdness
+            InlineMode::AlwaysUnless2D | InlineMode::FlatCacheWeirdness | InlineMode::Always
         )
     }
 
     pub fn in_2d(&self) -> bool {
-        matches!(self, InlineMode::FlatCacheWeirdness)
+        matches!(self, InlineMode::FlatCacheWeirdness | InlineMode::Always)
     }
 }
 

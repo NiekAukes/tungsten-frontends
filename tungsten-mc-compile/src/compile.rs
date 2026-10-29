@@ -17,6 +17,9 @@ pub struct CompiledOutput {
     pub cuda_density_function: Option<String>,
     /// The generated CUDA host C++ code handling memory and kernel launch orchestration.
     pub cuda_orchestration: Option<String>,
+    /// Every generated CUDA file as `(file name, contents)`: `orchestration.h`, `interface.cuh`,
+    /// `density.cu` and `orchestration.cu`.
+    pub cuda_files: Vec<(String, String)>,
 
     /// The generated Java source (`GeneratedWorldgen.java`).
     pub java_code: Option<String>,
@@ -32,9 +35,18 @@ pub fn do_compile(program: &tungsten_wg::spmt::SPMT) -> CompiledOutput {
     let mut rust_backend = RustConfig::default().to_backend();
     let mut java_backend = JavaConfig::default().to_backend();
     let mut inspect = InspectBackend::new(InspectConfig::default());
+    let mut cuda_config = tungsten_wg::CudaConfig::default();
+    cuda_config.profile = tungsten_wg::cuda::Profile::Tolerance;
+    let mut cuda_backend = cuda_config.to_backend();
+    // let mut cuda_backend = tungsten_wg::CudaConfig::default().to_backend();
     compile(
         &optimized_program,
-        &mut [&mut rust_backend, &mut java_backend, &mut inspect],
+        &mut [
+            &mut rust_backend,
+            &mut java_backend,
+            &mut inspect,
+            &mut cuda_backend,
+        ],
     )
     .expect("Failed to compile SPMT program into Rust");
 
@@ -56,11 +68,23 @@ pub fn do_compile(program: &tungsten_wg::spmt::SPMT) -> CompiledOutput {
         std::fs::write(path, content).unwrap();
     }
 
+    let cuda_output = cuda_backend.output().unwrap();
+    if cuda_output.warnings.len() > 0 {
+        eprintln!("CUDA compilation warnings:");
+        for warning in &cuda_output.warnings {
+            eprintln!("{}", warning);
+        }
+    }
+
+    let cuda_density_function = cuda_output.density_source.clone();
+    let cuda_orchestration = cuda_output.orchestration_source.clone();
+
     let rust_code = rust_backend.output();
     CompiledOutput {
         rust_code: rust_code.map(|s| s.full_source.clone()),
-        cuda_density_function: None,
-        cuda_orchestration: None,
+        cuda_density_function: Some(cuda_density_function),
+        cuda_orchestration: Some(cuda_orchestration),
+        cuda_files: cuda_output.files(),
         java_code: Some(java_code.source.clone()),
         wave_orchestration_graph: None,
     }

@@ -363,6 +363,16 @@ name = "tungsten-codegen"
 version = "0.1.2"
 
 [[package]]
+name = "tungsten-cuda"
+version = "0.1.2"
+dependencies = [
+ "tungsten-codegen",
+ "tungsten-interface",
+ "tungsten-ir",
+ "tungsten-rust",
+]
+
+[[package]]
 name = "tungsten-diff-harness"
 version = "0.1.0"
 dependencies = [
@@ -459,6 +469,7 @@ version = "0.1.2"
 dependencies = [
  "thiserror",
  "tungsten-codegen",
+ "tungsten-cuda",
  "tungsten-inspect",
  "tungsten-interface",
  "tungsten-ir",

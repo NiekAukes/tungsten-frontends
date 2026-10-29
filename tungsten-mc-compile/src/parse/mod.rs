@@ -589,7 +589,7 @@ impl<'m> NoiseRouter<'m> {
             self.vein_ridged,
             self.vein_toggle,
             self.preliminary_surface_level,
-            // self.aquifer_sampler,
+            self.aquifer_sampler,
         ]
     }
 }

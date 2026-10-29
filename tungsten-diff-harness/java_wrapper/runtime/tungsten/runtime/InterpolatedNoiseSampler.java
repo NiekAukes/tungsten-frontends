@@ -104,7 +104,7 @@ public final class InterpolatedNoiseSampler {
     }
 
     /** Rust: maintain_precision (OctavePerlinNoiseSampler.maintainPrecision) */
-    private static double maintain_precision(double value) {
+    static double maintain_precision(double value) {
         return value - Math.floor(value / 3.3554432e7 + 0.5) * 3.3554432e7;
     }
 

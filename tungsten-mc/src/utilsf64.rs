@@ -228,12 +228,17 @@ fn lerp_f64(t: f64, a: f64, b: f64) -> f64 {
     a + t * (b - a)
 }
 
-/// Uses the seeded PerlinNoiseSampler when available (initialized via set_perlin_seed).
-/// Falls back to reference permutation table if no sampler is set (for backward compatibility).
-/// Returns a value roughly in [-1, 1].
+/// One octave of `OctavePerlinNoiseSampler.sample`: `p` is already position * frequency, and is
+/// wrapped with `maintain_precision` like vanilla, so far-out coordinates don't overflow
+/// `floor_int`. Returns a value roughly in [-1, 1].
 #[inline(always)]
 pub fn perlin(p: Vec3, perm_table: &PerlinNoiseSampler) -> f64 {
-    sample_perlin(perm_table, p.x, p.y, p.z)
+    sample_perlin(
+        perm_table,
+        maintain_precision(p.x),
+        maintain_precision(p.y),
+        maintain_precision(p.z),
+    )
 }
 
 /// Reference implementation of Perlin noise using Ken Perlin's permutation table
@@ -1069,16 +1074,18 @@ pub fn packed_pos(x: i32, y: i32, z: i32) -> i64 {
     ((x as i64) & 0x3FFFFFF) << 38 | ((z as i64) & 0x3FFFFFF) << 12 | ((y as i64) & 0xFFF)
 }
 
+// Ports of BlockPos.unpackLong{X,Y,Z}: shift the field to the top, then arithmetic-shift it back
+// down so negative coordinates sign-extend.
 pub fn unpack_long_x(packed: i64) -> i32 {
-    ((packed >> 38) & 0x3FFFFFF) as i32
+    (packed >> 38) as i32
 }
 
 pub fn unpack_long_y(packed: i64) -> i32 {
-    (packed & 0xFFF) as i32
+    ((packed << 52) >> 52) as i32
 }
 
 pub fn unpack_long_z(packed: i64) -> i32 {
-    ((packed >> 12) & 0x3FFFFFF) as i32
+    ((packed << 26) >> 38) as i32
 }
 
 #[derive(Clone, Copy)]
@@ -1094,10 +1101,16 @@ pub fn esh(cache: EstimatedSurfaceHeight, x: i32, z: i32) -> i32 {
     0 // TODO
 }
 
+/// Packed fluid levels are `(fluid_level as i64) << 32 | block_state` (`encode_fluid_level` in
+/// tungsten-mc-compile's aquifer transform).
 pub fn get_block_state_from_packed(packed: i64, y_level: i32) -> i32 {
-    let block_state_var = (packed >> 32) as i32;
-    let fluid_level = (packed & 0xFFFFFFFF) as i32;
+    let block_state_var = (packed & 0xFFFFFFFF) as i32;
+    let fluid_level = get_fluid_level_from_packed(packed);
     block_state(block_state_var, fluid_level, y_level)
+}
+
+pub fn get_fluid_level_from_packed(packed: i64) -> i32 {
+    (packed >> 32) as i32
 }
 
 pub fn block_state(block_state: i32, fluid_level: i32, y_level: i32) -> i32 {
@@ -1106,6 +1119,10 @@ pub fn block_state(block_state: i32, fluid_level: i32, y_level: i32) -> i32 {
     } else {
         2 // ID for air block
     }
+}
+
+pub fn abs_i32(value: i32) -> i32 {
+    value.wrapping_abs()
 }
 
 pub fn min_i32(a: i32, b: i32) -> i32 {
