@@ -80,7 +80,8 @@ pub fn generate_from_source(
         generated_dir.display()
     );
     let arena = bumpalo::Bump::new();
-    let ast = tungsten_mc_compile::run_parse(&arena, &mc_config);
+    let ast = tungsten_mc_compile::run_parse(&arena, &mc_config)
+        .unwrap_or_else(|e| panic!("Could not parse the worldgen source: {}", e));
 
     if single_run {
         let output = run_generation_from_ast(&ast);

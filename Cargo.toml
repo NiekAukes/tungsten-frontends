@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "tungsten-mc-compile",
+    "tungsten-mc-compile-jni",
     "tungsten-mc",
     "tungsten-diff-harness",
 ]
@@ -16,7 +17,9 @@ exclude = ["tungsten-diff-harness/rust_wrapper"]
 opt-level = 3        # Maximum optimization
 lto = "fat"          # Best cross-crate optimization
 codegen-units = 1    # Better optimization, slower compile
-panic = "abort"      # Smaller + faster binaries
+# Unwind, not abort: tungsten-mc-compile-jni catches compiler panics at the JNI boundary
+# (catch_unwind) so a compiler bug can't take down the JVM, and cargo can't set this per package.
+panic = "unwind"
 # strip = true         # Remove debug symbols
 overflow-checks = false
 # debug = true
