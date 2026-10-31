@@ -1,4 +1,3 @@
-#![recursion_limit = "512"]
 use std::{path::PathBuf, thread::Builder};
 
 use clap::Parser;
@@ -8,11 +7,7 @@ use tungsten_wg::spmt::pretty::Printer;
 
 use tungsten_wg::spmt::{dag::DensityDAG, model::Addr, pretty::PrettyPrint};
 
-mod compile;
-use compile::do_compile;
-pub mod config_load;
-pub mod parse;
-pub mod transform_spmt;
+use tungsten_mc_compile::{MinecraftCompilerConfig, do_compile, parse, run_parse, transform_spmt};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Minecraft Worldgen SPMT Transformer & Codegen", long_about = None)]
@@ -31,6 +26,10 @@ struct Args {
 
     #[arg(long, default_value_t = 16)]
     chunk_size: usize,
+
+    /// The noise settings to compile
+    #[arg(long, default_value = "minecraft:overworld")]
+    root: String,
 
     #[arg(long, default_value_t = false)]
     emit_intermediates: bool,
@@ -53,22 +52,22 @@ pub fn main() {
 }
 
 fn run_with_args(args: Args) {
-    let mut data = config_load::MinecraftDataRaw::new();
-
-    // base version is always at crate_root/vanilla_worldgen
-    let macro_root = env!("CARGO_MANIFEST_DIR");
-    let mut folder_path = PathBuf::from(macro_root);
-    folder_path.push("vanilla_worldgen");
-
-    // 1. Load configs based on CLI args
-    config_load::load_all_configs(&mut data, &folder_path.to_string_lossy(), None);
+    let mut config = MinecraftCompilerConfig::new()
+        .with_chunk_size(args.chunk_size)
+        .with_root(args.root.clone());
     if let Some(mod_folder) = &args.mod_folder {
-        config_load::load_all_configs(&mut data, mod_folder, None);
+        config = config.with_mod_path(mod_folder.clone());
     }
 
+    // 1. Load and parse the bundled vanilla worldgen plus the mod folder
     let arena = bumpalo::Bump::with_capacity(1 * 1024 * 1024);
-    let mut mcdata = parse::MinecraftData::new(&arena, data, args.chunk_size);
-    mcdata.parse_from_raw();
+    let mcdata = match run_parse(&arena, &config) {
+        Ok(mcdata) => mcdata,
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+    };
 
     if args.verbose {
         println!(
@@ -78,10 +77,7 @@ fn run_with_args(args: Args) {
     }
 
     // 2. Core Logic (Density Functions & SPMT Transformations)
-    let noise_generator = mcdata
-        .noise_settings
-        .get("minecraft:overworld")
-        .expect("Could not find minecraft:overworld settings");
+    let noise_generator = mcdata.root().expect("run_parse parses the root");
 
     let transform_arena = bumpalo::Bump::with_capacity(1 * 1024 * 1024);
     let transformer = transform_spmt::Transformer::new(&transform_arena);
@@ -137,11 +133,11 @@ fn run_with_args(args: Args) {
         std::fs::write(&real_path, rust_code).unwrap();
         println!("Generated Rust output at '{}'", real_path.display());
     }
-    // if let Some(java_code) = &compiled_output.java_code {
-    //     let java_path = args.output.join("GeneratedWorldgen.java");
-    //     std::fs::write(&java_path, java_code).unwrap();
-    //     println!("Generated Java output at '{}'", java_path.display());
-    // }
+    if let Some(java_code) = &compiled_output.java_code {
+        let java_path = args.output.join("GeneratedWorldgen.java");
+        std::fs::write(&java_path, java_code).unwrap();
+        println!("Generated Java output at '{}'", java_path.display());
+    }
     if args.cuda {
         // --- Write CUDA ---
         let cuda_base = args.output;
@@ -161,8 +157,7 @@ fn run_with_args(args: Args) {
 /// Extracted helper function to keep `run_with_args` clean
 fn emit_intermediate_files(mcdata: &parse::MinecraftData, program: &SPMT) {
     let density_function = mcdata
-        .noise_settings
-        .get("minecraft:overworld")
+        .root()
         .unwrap()
         .noise_router
         .final_density;

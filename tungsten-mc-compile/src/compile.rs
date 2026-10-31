@@ -1,8 +1,12 @@
 // --- Output Structure ---
 
 use tungsten_wg::{
-    InspectBackend, InspectConfig, JavaConfig, RustConfig, compile, optimizer::perform_inline,
+    InspectBackend, InspectConfig, JavaConfig, JavaOutput, RustConfig, compile,
+    ir::model::OptimizedProgram, optimizer::perform_inline,
 };
+
+use crate::contract;
+use crate::error::CompileError;
 
 /// Holds the generated raw source code strings for whichever backends were enabled
 /// in the [`CompilerConfig`].
@@ -28,9 +32,33 @@ pub struct CompiledOutput {
     pub wave_orchestration_graph: Option<String>,
 }
 
-pub fn do_compile(program: &tungsten_wg::spmt::SPMT) -> CompiledOutput {
-    let mut optimized_program = tungsten_wg::spmt::conversion::convert(&program).unwrap();
+/// Converts the SPMT program and inlines it; the input of every backend.
+fn optimize(program: &tungsten_wg::spmt::SPMT) -> Result<OptimizedProgram, CompileError> {
+    let mut optimized_program = tungsten_wg::spmt::conversion::convert(program)
+        .map_err(|e| CompileError::Internal(format!("SPMT conversion failed: {:?}", e)))?;
     perform_inline(&mut optimized_program);
+    Ok(optimized_program)
+}
+
+/// Runs only the Java backend, with the class names of [`crate::contract`]. Writes nothing.
+pub fn compile_java(program: &tungsten_wg::spmt::SPMT) -> Result<JavaOutput, CompileError> {
+    let optimized_program = optimize(program)?;
+    let config = JavaConfig {
+        package: contract::PACKAGE.to_string(),
+        class_name: contract::CLASS_NAME.to_string(),
+        ..JavaConfig::default()
+    };
+    let mut java_backend = config.to_backend();
+    compile(&optimized_program, &mut [&mut java_backend])
+        .map_err(|e| CompileError::Internal(format!("Java backend failed: {:?}", e)))?;
+    java_backend
+        .output()
+        .cloned()
+        .ok_or_else(|| CompileError::Internal("Java backend produced no output".into()))
+}
+
+pub fn do_compile(program: &tungsten_wg::spmt::SPMT) -> CompiledOutput {
+    let optimized_program = optimize(program).unwrap();
 
     let mut rust_backend = RustConfig::default().to_backend();
     let mut java_backend = JavaConfig::default().to_backend();

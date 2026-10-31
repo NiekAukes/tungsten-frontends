@@ -1,547 +1,259 @@
+use crate::error::{ResourceKind, normalize_id};
 use crate::parse::{
-    model::Density, model::DensityType, spline::SplineParseFunctions, MinecraftData,
+    MinecraftData, ParseResult, model::Density, model::DensityType, spline::SplineParseFunctions,
 };
 
 pub trait DensityParseFunctions<'m> {
-    fn parse_density_function(&self, json_str: &str) -> Density<'m>;
-    fn parse_density_function_from_value(&self, value: &serde_json::Value) -> Density<'m>;
+    fn parse_density_function(&self, json_str: &str) -> ParseResult<Density<'m>>;
+    fn parse_density_function_from_value(
+        &self,
+        value: &serde_json::Value,
+    ) -> ParseResult<Density<'m>>;
     fn parse_density_function_from_value_and_name(
         &self,
         value: &serde_json::Value,
         canonical_name: &str,
-    ) -> Density<'m>;
+    ) -> ParseResult<Density<'m>>;
 }
 
 impl<'m> DensityParseFunctions<'m> for MinecraftData<'m> {
-    fn parse_density_function(&self, json_str: &str) -> Density<'m> {
+    fn parse_density_function(&self, json_str: &str) -> ParseResult<Density<'m>> {
         // Implement parsing logic for DensityFunction
         // convert the JSON string to Values, and parse recursively
-        let value: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let value: serde_json::Value = serde_json::from_str(json_str)
+            .map_err(|e| self.unsupported(format!("invalid JSON: {}", e)))?;
         self.parse_density_function_from_value(&value)
     }
 
-    fn parse_density_function_from_value(&self, value: &serde_json::Value) -> Density<'m> {
+    fn parse_density_function_from_value(
+        &self,
+        value: &serde_json::Value,
+    ) -> ParseResult<Density<'m>> {
         // Implement recursive parsing logic for DensityFunction from serde_json::Value
         // the value may be an object with a "type" field indicating the variant
         // or a primitive value for Const
         if let Some(obj) = value.as_object() {
-            if let Some(type_value) = obj.get("type") {
-                if let Some(type_str) = type_value.as_str() {
-                    match type_str {
-                        "minecraft:noise" => {
-                            let noise_name = obj
-                                .get("noise")
-                                .and_then(|v| v.as_str())
-                                .expect("Missing noise field in minecraft:noise");
+            let type_str = self.str_field(obj, "density function", "type")?;
+            // a density function argument of this type
+            let arg =
+                |key: &str| self.parse_density_function_from_value(self.field(obj, type_str, key)?);
+            let number = |key: &str| self.f64_field(obj, type_str, key);
+            // optional numbers default to 1.0, as in vanilla's codecs
+            let scale = |key: &str| obj.get(key).and_then(|v| v.as_f64()).unwrap_or(1.0);
 
-                            // noise is already defined, so just reference it
-                            let noise = self
-                                .normal_noises
-                                .get(noise_name)
-                                .expect(&format!("Referenced noise not found: {}", noise_name));
-                            let xz_scale =
-                                obj.get("xz_scale").and_then(|v| v.as_f64()).unwrap_or(1.0);
-                            let y_scale =
-                                obj.get("y_scale").and_then(|v| v.as_f64()).unwrap_or(1.0);
-
-                            self.arena.alloc(DensityType::Noise {
-                                name: noise_name.to_string(),
-                                noise: *noise,
-                                xz_scale,
-                                y_scale,
-                            })
-                        }
-                        "minecraft:cache_2d" => {
-                            let source_value = obj
-                                .get("argument")
-                                .expect("Missing argument field in minecraft:cache_2d");
-                            let source = self.parse_density_function_from_value(source_value);
-                            // let xz_scale = obj.get("xz_scale").and_then(|v| v.as_f64()).unwrap_or(1.0);
-                            // let y_scale = obj.get("y_scale").and_then(|v| v.as_f64()).unwrap_or(1.0);
-
-                            self.arena.alloc(DensityType::Cache2d { argument: source })
-                        }
-
-                        "minecraft:squeeze" => {
-                            let argument_value = obj
-                                .get("argument")
-                                .expect("Missing argument field in minecraft:squeeze");
-                            let argument = self.parse_density_function_from_value(argument_value);
-
-                            self.arena.alloc(DensityType::Squeeze { argument })
-                        }
-                        "minecraft:add" => {
-                            let left_value = obj
-                                .get("argument1")
-                                .expect("Missing argument1 field in minecraft:add");
-                            let right_value = obj
-                                .get("argument2")
-                                .expect("Missing argument2 field in minecraft:add");
-                            let left = self.parse_density_function_from_value(left_value);
-                            let right = self.parse_density_function_from_value(right_value);
-                            self.arena.alloc(DensityType::Add { left, right })
-                        }
-                        "minecraft:mul" => {
-                            let left_value = obj
-                                .get("argument1")
-                                .expect("Missing argument1 field in minecraft:add");
-                            let right_value = obj
-                                .get("argument2")
-                                .expect("Missing argument2 field in minecraft:add");
-                            let left = self.parse_density_function_from_value(left_value);
-                            let right = self.parse_density_function_from_value(right_value);
-                            self.arena.alloc(DensityType::Multiply { left, right })
-                        }
-
-                        "minecraft:interpolated" => {
-                            let argument_value = obj
-                                .get("argument")
-                                .expect("Missing argument field in minecraft:interpolated");
-                            let argument = self.parse_density_function_from_value(argument_value);
-
-                            self.arena.alloc(DensityType::Interpolated { argument })
-                        }
-
-                        "minecraft:blend_density" => {
-                            let argument_value = obj
-                                .get("argument")
-                                .expect("Missing argument field in minecraft:blend_density");
-                            let argument = self.parse_density_function_from_value(argument_value);
-
-                            // no blend_density is used, because it is for compatibility with older worlds
-                            argument
-                        }
-
-                        "minecraft:end_islands" => self.arena.alloc(DensityType::EndIslands),
-                        "minecraft:y_clamped_gradient" => {
-                            let from_y = obj
-                                .get("from_y")
-                                .and_then(|v| v.as_f64())
-                                .expect("Missing from_y field in minecraft:y_clamped_gradient");
-                            let to_y = obj
-                                .get("to_y")
-                                .and_then(|v| v.as_f64())
-                                .expect("Missing to_y field in minecraft:y_clamped_gradient");
-                            let from_value = obj
-                                .get("from_value")
-                                .and_then(|v| v.as_f64())
-                                .expect("Missing from_value field in minecraft:y_clamped_gradient");
-                            let to_value = obj
-                                .get("to_value")
-                                .and_then(|v| v.as_f64())
-                                .expect("Missing to_value field in minecraft:y_clamped_gradient");
-
-                            self.arena.alloc(DensityType::YClampedGradient {
-                                from_y,
-                                to_y,
-                                from_value,
-                                to_value,
-                            })
-                        }
-
-                        "minecraft:flat_cache" => {
-                            let argument_value = obj
-                                .get("argument")
-                                .expect("Missing argument field in minecraft:flat_cache");
-                            let argument = self.parse_density_function_from_value(argument_value);
-
-                            self.arena.alloc(DensityType::FlatCache { argument })
-                        }
-
-                        "minecraft:old_blended_noise" => {
-                            let smear_scale_multiplier = obj
-                                .get("smear_scale_multiplier")
-                                .and_then(|v| v.as_f64())
-                                .unwrap_or(1.0);
-                            let xz_factor =
-                                obj.get("xz_factor").and_then(|v| v.as_f64()).unwrap_or(1.0);
-                            let xz_scale =
-                                obj.get("xz_scale").and_then(|v| v.as_f64()).unwrap_or(1.0);
-                            let y_factor =
-                                obj.get("y_factor").and_then(|v| v.as_f64()).unwrap_or(1.0);
-                            let y_scale =
-                                obj.get("y_scale").and_then(|v| v.as_f64()).unwrap_or(1.0);
-
-                            self.arena.alloc(DensityType::OldBlendedNoise {
-                                smear_scale_multiplier,
-                                xz_factor,
-                                xz_scale,
-                                y_factor,
-                                y_scale,
-                            })
-                        }
-
-                        "minecraft:shifted_noise" => {
-                            let noise_name = obj
-                                .get("noise")
-                                .and_then(|v| v.as_str())
-                                .expect("Missing noise field in minecraft:shifted_noise");
-
-                            // noise is already defined, so just reference it
-                            let noise = self
-                                .normal_noises
-                                .get(noise_name)
-                                .expect(&format!("Referenced noise not found: {}", noise_name));
-
-                            let shift_x_value = obj
-                                .get("shift_x")
-                                .expect("Missing shift_x field in minecraft:shifted_noise");
-                            let shift_x = self.parse_density_function_from_value(shift_x_value);
-
-                            let shift_y_value = obj
-                                .get("shift_y")
-                                .expect("Missing shift_y field in minecraft:shifted_noise");
-                            let shift_y = self.parse_density_function_from_value(shift_y_value);
-
-                            let shift_z_value = obj
-                                .get("shift_z")
-                                .expect("Missing shift_z field in minecraft:shifted_noise");
-                            let shift_z = self.parse_density_function_from_value(shift_z_value);
-
-                            let xz_scale =
-                                obj.get("xz_scale").and_then(|v| v.as_f64()).unwrap_or(1.0);
-                            let y_scale =
-                                obj.get("y_scale").and_then(|v| v.as_f64()).unwrap_or(1.0);
-
-                            self.arena.alloc(DensityType::ShiftedNoise {
-                                name: noise_name.to_string(),
-                                noise: *noise,
-                                shift_x,
-                                shift_y,
-                                shift_z,
-                                xz_scale,
-                                y_scale,
-                            })
-                        }
-
-                        "minecraft:shift_a" => {
-                            let argument_value = obj
-                                .get("argument")
-                                .expect("Missing argument field in minecraft:shift_a");
-
-                            let noise_name = argument_value
-                                .as_str()
-                                .expect("Missing noise field in minecraft:shift_a");
-                            // noise is already defined, so just reference it
-                            let noise = self
-                                .normal_noises
-                                .get(noise_name)
-                                .expect(&format!("Referenced noise not found: {}", noise_name));
-                            let name = noise_name.to_string();
-                            self.arena.alloc(DensityType::ShiftA {
-                                argument: *noise,
-                                name,
-                            })
-                        }
-
-                        "minecraft:shift_b" => {
-                            let argument_value = obj
-                                .get("argument")
-                                .expect("Missing argument field in minecraft:shift_b");
-                            let noise_name: &str = argument_value
-                                .as_str()
-                                .expect("Missing noise field in minecraft:shift_a");
-                            // noise is already defined, so just reference it
-                            let noise = self
-                                .normal_noises
-                                .get(noise_name)
-                                .expect(&format!("Referenced noise not found: {}", noise_name));
-                            let name = noise_name.to_string();
-                            self.arena.alloc(DensityType::ShiftB {
-                                argument: *noise,
-                                name,
-                            })
-                        }
-                        "minecraft:blend_alpha" => {
-                            // blend_offset is used for compatibility with older worlds, it blends terrain heights near world borders
-                            // for new terrian, it is effectively a 0
-                            self.arena.alloc(DensityType::Const(1.0))
-                        }
-                        "minecraft:blend_offset" => {
-                            // blend_offset is used for compatibility with older worlds, it blends terrain heights near world borders
-                            // for new terrian, it is effectively a 0
-                            self.arena.alloc(DensityType::Const(0.0))
-                        }
-
-                        "minecraft:cache_once" => {
-                            let argument_value = obj
-                                .get("argument")
-                                .expect("Missing argument field in minecraft:cache_once");
-                            let argument = self.parse_density_function_from_value(argument_value);
-
-                            self.arena.alloc(DensityType::CacheOnce { argument })
-                        }
-
-                        "minecraft:spline" => {
-                            let spline_value = obj
-                                .get("spline")
-                                .expect("Missing spline field in minecraft:spline");
-                            let spline = self.parse_spline(spline_value);
-
-                            self.arena.alloc(DensityType::Spline { spline })
-                        }
-
-                        "minecraft:abs" => {
-                            let argument_value = obj
-                                .get("argument")
-                                .expect("Missing argument field in minecraft:abs");
-                            let argument = self.parse_density_function_from_value(argument_value);
-
-                            self.arena.alloc(DensityType::Abs { argument })
-                        }
-
-                        "minecraft:min" => {
-                            let left_value = obj
-                                .get("argument1")
-                                .expect("Missing argument1 field in minecraft:min");
-                            let right_value = obj
-                                .get("argument2")
-                                .expect("Missing argument2 field in minecraft:min");
-                            let left = self.parse_density_function_from_value(left_value);
-                            let right = self.parse_density_function_from_value(right_value);
-                            self.arena.alloc(DensityType::Min { left, right })
-                        }
-                        "minecraft:max" => {
-                            let left_value = obj
-                                .get("argument1")
-                                .expect("Missing argument1 field in minecraft:max");
-                            let right_value = obj
-                                .get("argument2")
-                                .expect("Missing argument2 field in minecraft:max");
-                            let left = self.parse_density_function_from_value(left_value);
-                            let right = self.parse_density_function_from_value(right_value);
-                            self.arena.alloc(DensityType::Max { left, right })
-                        }
-
-                        "minecraft:range_choice" => {
-                            let input_value = obj
-                                .get("input")
-                                .expect("Missing input field in minecraft:range_choice");
-                            let input = self.parse_density_function_from_value(input_value);
-
-                            let min_inclusive = obj
-                                .get("min_inclusive")
-                                .and_then(|v| v.as_f64())
-                                .expect("Missing min_inclusive field in minecraft:range_choice");
-                            let max_exclusive = obj
-                                .get("max_exclusive")
-                                .and_then(|v| v.as_f64())
-                                .expect("Missing max_exclusive field in minecraft:range_choice");
-
-                            let when_in_range_value = obj
-                                .get("when_in_range")
-                                .expect("Missing when_in_range field in minecraft:range_choice");
-                            let when_in_range =
-                                self.parse_density_function_from_value(when_in_range_value);
-
-                            let when_out_of_range_value = obj.get("when_out_of_range").expect(
-                                "Missing when_out_of_range field in minecraft:range_choice",
-                            );
-                            let when_out_of_range =
-                                self.parse_density_function_from_value(when_out_of_range_value);
-
-                            self.arena.alloc(DensityType::RangeChoice {
-                                input,
-                                min_inclusive,
-                                max_exclusive,
-                                when_in_range,
-                                when_out_of_range,
-                            })
-                        }
-
-                        "minecraft:quarter_negative" => {
-                            // minecraft:quarter_negative is a modifier density function used in Minecraft's worldgen to scale and shift input values in a specific way.
-                            // It's not commonly discussed outside the code, but its effect is mathematically simple.
-                            // f(x) = min(x, 0) / 4
-
-                            // this is easily represented as a min with 0, then a multiply by 0.25
-                            // so no internal representation is needed
-                            let argument_value = obj
-                                .get("argument")
-                                .expect("Missing argument field in minecraft:quarter_negative");
-                            let argument = self.parse_density_function_from_value(argument_value);
-
-                            self.arena.alloc(DensityType::XNegative {
-                                argument,
-                                neg_x_multiplier: 0.25,
-                            })
-                        }
-
-                        "minecraft:half_negative" => {
-                            // almost the same idea as quarter_negative, just with a weaker dampening effect.
-                            // f(x) = x     if x >= 0
-                            //        x / 2 if x <  0
-                            // can be made via RangeChoice
-                            let argument_value = obj
-                                .get("argument")
-                                .expect("Missing argument field in minecraft:half_negative");
-                            let argument = self.parse_density_function_from_value(argument_value);
-
-                            self.arena.alloc(DensityType::XNegative {
-                                argument,
-                                neg_x_multiplier: 0.5,
-                            })
-                        }
-
-                        "minecraft:clamp" => {
-                            let input_value = obj
-                                .get("input")
-                                .expect("Missing input field in minecraft:clamp");
-                            let input = self.parse_density_function_from_value(input_value);
-
-                            let min = obj
-                                .get("min")
-                                .and_then(|v| v.as_f64())
-                                .expect("Missing min field in minecraft:clamp");
-                            let max = obj
-                                .get("max")
-                                .and_then(|v| v.as_f64())
-                                .expect("Missing max field in minecraft:clamp");
-
-                            self.arena.alloc(DensityType::Clamp { input, min, max })
-                        }
-
-                        "minecraft:weird_scaled_sampler" => {
-                            let input_value = obj
-                                .get("input")
-                                .expect("Missing input field in minecraft:weird_scaled_sampler");
-                            let input = self.parse_density_function_from_value(input_value);
-
-                            let noise_to_sample_str = obj
-                                .get("noise")
-                                .and_then(|v| v.as_str())
-                                .expect("Missing noise field in minecraft:weird_scaled_sampler");
-                            let noise_to_sample =
-                                self.normal_noises.get(noise_to_sample_str).expect(&format!(
-                                    "Referenced noise not found: {}",
-                                    noise_to_sample_str
-                                ));
-
-                            let rarity_value_mapper = obj
-                                .get("rarity_value_mapper")
-                                .and_then(|v| v.as_str())
-                                .expect("Missing rarity_value_mapper field in minecraft:weird_scaled_sampler")
-                                .to_string();
-
-                            self.arena.alloc(DensityType::WeirdScaledSampler {
-                                input,
-                                noise_name: noise_to_sample_str.to_string(),
-                                noise_to_sample: *noise_to_sample,
-                                rarity_value_mapper,
-                            })
-                        }
-
-                        "minecraft:square" => {
-                            let argument_value = obj
-                                .get("argument")
-                                .expect("Missing argument field in minecraft:square");
-                            let argument = self.parse_density_function_from_value(argument_value);
-
-                            self.arena.alloc(DensityType::Square { argument })
-                        }
-
-                        "minecraft:cube" => {
-                            let argument_value = obj
-                                .get("argument")
-                                .expect("Missing argument field in minecraft:cube");
-                            let argument = self.parse_density_function_from_value(argument_value);
-
-                            self.arena.alloc(DensityType::Cube { argument })
-                        }
-
-                        "minecraft:invert" => {
-                            let argument_value = obj
-                                .get("argument")
-                                .expect("Missing argument field in minecraft:invert");
-                            let argument = self.parse_density_function_from_value(argument_value);
-
-                            self.arena.alloc(DensityType::Invert { argument })
-                        }
-
-                        "minecraft:find_top_surface" => {
-                            let density_value = obj
-                                .get("density")
-                                .expect("Missing density field in minecraft:find_top_surface");
-                            let density = self.parse_density_function_from_value(density_value);
-
-                            let cell_height = obj
-                                .get("cell_height")
-                                .expect("Missing cell_height field in minecraft:find_top_surface")
-                                .as_i64()
-                                .expect("cell_height must be a number")
-                                as i32;
-
-                            // lower bound is a i32
-                            let lower_bound = obj
-                                .get("lower_bound")
-                                .expect("Missing lower_bound field in minecraft:find_top_surface")
-                                .as_i64()
-                                .expect("lower_bound must be a number")
-                                as i32;
-
-                            // upper bound is a density function
-                            let upper_bound_value = obj
-                                .get("upper_bound")
-                                .expect("Missing upper_bound field in minecraft:find_top_surface");
-                            let upper_bound =
-                                self.parse_density_function_from_value(upper_bound_value);
-
-                            self.arena.alloc(DensityType::FindTopSurface {
-                                density,
-                                cell_height,
-                                lower_bound,
-                                upper_bound,
-                            })
-                        }
-
-                        _ => panic!(
-                            "Invalid type field in DensityFunction: {}, with object: {:?}",
-                            type_str, obj
-                        ),
-                    }
-                } else {
-                    panic!("Invalid type field in DensityFunction: {:?}", type_value);
+            let density = match type_str {
+                "minecraft:noise" => {
+                    let noise_name = self.str_field(obj, type_str, "noise")?;
+                    // noise is already defined, so just reference it
+                    let noise = self.noise(noise_name)?;
+                    self.arena.alloc(DensityType::Noise {
+                        name: noise_name.to_string(),
+                        noise,
+                        xz_scale: scale("xz_scale"),
+                        y_scale: scale("y_scale"),
+                    })
                 }
-            } else {
-                panic!("Missing type field in DensityFunction object: {:?}", obj);
-            }
+                "minecraft:cache_2d" => self.arena.alloc(DensityType::Cache2d {
+                    argument: arg("argument")?,
+                }),
+                "minecraft:squeeze" => self.arena.alloc(DensityType::Squeeze {
+                    argument: arg("argument")?,
+                }),
+                "minecraft:add" => {
+                    let left = arg("argument1")?;
+                    let right = arg("argument2")?;
+                    self.arena.alloc(DensityType::Add { left, right })
+                }
+                "minecraft:mul" => {
+                    let left = arg("argument1")?;
+                    let right = arg("argument2")?;
+                    self.arena.alloc(DensityType::Multiply { left, right })
+                }
+                "minecraft:interpolated" => self.arena.alloc(DensityType::Interpolated {
+                    argument: arg("argument")?,
+                }),
+                // no blend_density is used, because it is for compatibility with older worlds
+                "minecraft:blend_density" => arg("argument")?,
+                "minecraft:end_islands" => self.arena.alloc(DensityType::EndIslands),
+                "minecraft:y_clamped_gradient" => self.arena.alloc(DensityType::YClampedGradient {
+                    from_y: number("from_y")?,
+                    to_y: number("to_y")?,
+                    from_value: number("from_value")?,
+                    to_value: number("to_value")?,
+                }),
+                "minecraft:flat_cache" => self.arena.alloc(DensityType::FlatCache {
+                    argument: arg("argument")?,
+                }),
+                "minecraft:old_blended_noise" => self.arena.alloc(DensityType::OldBlendedNoise {
+                    smear_scale_multiplier: scale("smear_scale_multiplier"),
+                    xz_factor: scale("xz_factor"),
+                    xz_scale: scale("xz_scale"),
+                    y_factor: scale("y_factor"),
+                    y_scale: scale("y_scale"),
+                }),
+                "minecraft:shifted_noise" => {
+                    let noise_name = self.str_field(obj, type_str, "noise")?;
+                    // noise is already defined, so just reference it
+                    let noise = self.noise(noise_name)?;
+                    let shift_x = arg("shift_x")?;
+                    let shift_y = arg("shift_y")?;
+                    let shift_z = arg("shift_z")?;
+                    self.arena.alloc(DensityType::ShiftedNoise {
+                        name: noise_name.to_string(),
+                        noise,
+                        shift_x,
+                        shift_y,
+                        shift_z,
+                        xz_scale: scale("xz_scale"),
+                        y_scale: scale("y_scale"),
+                    })
+                }
+                "minecraft:shift_a" => {
+                    let noise_name = self.str_field(obj, type_str, "argument")?;
+                    let argument = self.noise(noise_name)?;
+                    self.arena.alloc(DensityType::ShiftA {
+                        argument,
+                        name: noise_name.to_string(),
+                    })
+                }
+                "minecraft:shift_b" => {
+                    let noise_name = self.str_field(obj, type_str, "argument")?;
+                    let argument = self.noise(noise_name)?;
+                    self.arena.alloc(DensityType::ShiftB {
+                        argument,
+                        name: noise_name.to_string(),
+                    })
+                }
+                // blend_alpha and blend_offset are used for compatibility with older worlds, they
+                // blend terrain heights near world borders; for new terrain they are constants
+                "minecraft:blend_alpha" => self.arena.alloc(DensityType::Const(1.0)),
+                "minecraft:blend_offset" => self.arena.alloc(DensityType::Const(0.0)),
+                "minecraft:cache_once" => self.arena.alloc(DensityType::CacheOnce {
+                    argument: arg("argument")?,
+                }),
+                "minecraft:spline" => {
+                    let spline = self.parse_spline(self.field(obj, type_str, "spline")?)?;
+                    self.arena.alloc(DensityType::Spline { spline })
+                }
+                "minecraft:abs" => self.arena.alloc(DensityType::Abs {
+                    argument: arg("argument")?,
+                }),
+                "minecraft:min" => {
+                    let left = arg("argument1")?;
+                    let right = arg("argument2")?;
+                    self.arena.alloc(DensityType::Min { left, right })
+                }
+                "minecraft:max" => {
+                    let left = arg("argument1")?;
+                    let right = arg("argument2")?;
+                    self.arena.alloc(DensityType::Max { left, right })
+                }
+                "minecraft:range_choice" => {
+                    let input = arg("input")?;
+                    let min_inclusive = number("min_inclusive")?;
+                    let max_exclusive = number("max_exclusive")?;
+                    let when_in_range = arg("when_in_range")?;
+                    let when_out_of_range = arg("when_out_of_range")?;
+                    self.arena.alloc(DensityType::RangeChoice {
+                        input,
+                        min_inclusive,
+                        max_exclusive,
+                        when_in_range,
+                        when_out_of_range,
+                    })
+                }
+                // f(x) = min(x, 0) / 4, represented as a multiplier on the negative half
+                "minecraft:quarter_negative" => self.arena.alloc(DensityType::XNegative {
+                    argument: arg("argument")?,
+                    neg_x_multiplier: 0.25,
+                }),
+                // f(x) = x if x >= 0, x / 2 if x < 0
+                "minecraft:half_negative" => self.arena.alloc(DensityType::XNegative {
+                    argument: arg("argument")?,
+                    neg_x_multiplier: 0.5,
+                }),
+                "minecraft:clamp" => {
+                    let input = arg("input")?;
+                    let min = number("min")?;
+                    let max = number("max")?;
+                    self.arena.alloc(DensityType::Clamp { input, min, max })
+                }
+                "minecraft:weird_scaled_sampler" => {
+                    let input = arg("input")?;
+                    let noise_name = self.str_field(obj, type_str, "noise")?;
+                    let noise_to_sample = self.noise(noise_name)?;
+                    let rarity_value_mapper = self
+                        .str_field(obj, type_str, "rarity_value_mapper")?
+                        .to_string();
+                    if !matches!(rarity_value_mapper.as_str(), "type_1" | "type_2") {
+                        return Err(self.unsupported(format!(
+                            "unknown rarity_value_mapper `{}` (expected `type_1` or `type_2`)",
+                            rarity_value_mapper
+                        )));
+                    }
+                    self.arena.alloc(DensityType::WeirdScaledSampler {
+                        input,
+                        noise_name: noise_name.to_string(),
+                        noise_to_sample,
+                        rarity_value_mapper,
+                    })
+                }
+                "minecraft:square" => self.arena.alloc(DensityType::Square {
+                    argument: arg("argument")?,
+                }),
+                "minecraft:cube" => self.arena.alloc(DensityType::Cube {
+                    argument: arg("argument")?,
+                }),
+                "minecraft:invert" => self.arena.alloc(DensityType::Invert {
+                    argument: arg("argument")?,
+                }),
+                "minecraft:find_top_surface" => {
+                    let density = arg("density")?;
+                    let cell_height = self.i32_field(obj, type_str, "cell_height")?;
+                    if cell_height <= 0 {
+                        return Err(self.unsupported(format!(
+                            "`cell_height` must be positive, found {}",
+                            cell_height
+                        )));
+                    }
+                    let lower_bound = self.i32_field(obj, type_str, "lower_bound")?;
+                    // upper bound is a density function
+                    let upper_bound = arg("upper_bound")?;
+                    self.arena.alloc(DensityType::FindTopSurface {
+                        density,
+                        cell_height,
+                        lower_bound,
+                        upper_bound,
+                    })
+                }
+                _ => {
+                    return Err(
+                        self.unsupported(format!("unknown density function type `{}`", type_str))
+                    );
+                }
+            };
+            Ok(density)
         } else if let Some(num) = value.as_f64() {
-            //density_arena.intern(DensityFunctionType::Const(num))
-            self.arena.alloc(DensityType::Const(num))
+            Ok(self.arena.alloc(DensityType::Const(num)))
+        } else if let Some(s) = value.as_str() {
+            // a reference to another density function
+            let id = normalize_id(s);
+            let Some(referenced) = self.raw_data.density_functions.get(&id) else {
+                return Err(self.missing_reference(ResourceKind::DensityFunction, &id));
+            };
+            let argument = self.with_context(ResourceKind::DensityFunction, &id, || {
+                self.parse_density_function(referenced)
+            })?;
+            self.reached_density_function(&id);
+            Ok(self.arena.alloc(DensityType::NamedDensityReference {
+                name: self.arena.alloc(id),
+                argument,
+            }))
         } else {
-            let mut s = value
-                .as_str()
-                .expect("DensityFunction must be an object, number, or string")
-                .to_string();
-            if !s.starts_with("minecraft:") {
-                // add the "minecraft:" prefix if it's missing
-                s = format!("minecraft:{}", s);
-            }
-
-            // may be a reference to another density function
-            if let Some(referenced) = self.density_functions.get(&s) {
-                *referenced
-            //} else if let Some(referenced) = self.normal_noises.get(s) {
-            // also allow referencing normal noises directly
-            //self.arena.alloc(DensityType::Noise(*referenced))
-            } else if let Some(referenced) = self.raw_data.density_functions.get(&s) {
-                // also allow referencing density functions directly
-                let parsed = self.parse_density_function(referenced);
-                let name = s.to_string();
-                // let argument = if let DensityType::CacheOnce { argument } = parsed {
-                //     // turn the flat cache into a named density reference
-                //     *argument
-                // } else {
-                //     parsed
-                // };
-                let argument = parsed;
-                self.arena.alloc(DensityType::NamedDensityReference {
-                    name: self.arena.alloc(name),
-                    argument,
-                })
-            } else {
-                panic!("Unknown DensityFunction type or reference: {:?}", value);
-            }
+            Err(self.unsupported(format!(
+                "a density function must be an object, number or id, found `{}`",
+                value
+            )))
         }
     }
 
@@ -549,13 +261,13 @@ impl<'m> DensityParseFunctions<'m> for MinecraftData<'m> {
         &self,
         value: &serde_json::Value,
         canonical_name: &str,
-    ) -> Density<'m> {
-        let density = self.parse_density_function_from_value(value);
+    ) -> ParseResult<Density<'m>> {
+        let density = self.parse_density_function_from_value(value)?;
         // create a new named reference with the given canonical name
         let name = self.arena.alloc(canonical_name.to_string());
-        self.arena.alloc(DensityType::NamedDensityReference {
+        Ok(self.arena.alloc(DensityType::NamedDensityReference {
             name,
             argument: density,
-        })
+        }))
     }
 }

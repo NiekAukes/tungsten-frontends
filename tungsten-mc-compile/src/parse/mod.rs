@@ -1,18 +1,25 @@
-use core::panic;
-use std::{collections::HashMap, fmt::Debug};
+use std::{
+    cell::RefCell,
+    collections::{BTreeSet, HashMap},
+    fmt::Debug,
+};
 
 use bumpalo::Bump;
+use serde_json::Value;
 
 use crate::{
     config_load::MinecraftDataRaw,
+    error::{normalize_id, CompileError, ResourceKind},
     parse::{
         density::DensityParseFunctions,
         model::{
-            CoordinateType, Density, DensitySource, NoiseGeneratorSettings, NoiseRouter,
+            CoordinateType, DensitySource, NoiseGeneratorSettings, NoiseRouter,
             NoiseSettings, NormalNoise, NormalNoiseType,
         },
     },
 };
+
+type JsonObject = serde_json::Map<String, Value>;
 
 pub mod density;
 pub mod dot;
@@ -149,26 +156,32 @@ worldgen/processor_list → StructureProcessorList (for structure block modifica
 
 pub type Interned<'m, T> = &'m T; // TODO intern later
 
+pub type ParseResult<T> = Result<T, CompileError>;
+
 pub struct MinecraftData<'m> {
     arena: &'m Bump,
     raw_data: MinecraftDataRaw,
+    /// Parsed noise settings, filled by [`MinecraftData::parse_root`].
     pub noise_settings: HashMap<String, NoiseGeneratorSettings<'m>>,
-    pub density_functions: HashMap<String, Density<'m>>,
-    pub normal_noises: HashMap<String, NormalNoise<'m>>,
+    /// The id of the last root parsed.
+    root: Option<String>,
+    /// Parsed on first reference.
+    normal_noises: RefCell<HashMap<String, NormalNoise<'m>>>,
     chunk_size: usize,
+    /// The resources being parsed, innermost last; errors name the innermost one.
+    context: RefCell<Vec<(ResourceKind, String)>>,
+    /// Every density function and noise resolved by reference so far.
+    reachable: RefCell<BTreeSet<(ResourceKind, String)>>,
 }
 
 impl<'m> Debug for MinecraftData<'m> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MinecraftData")
             .field("noise_settings", &self.noise_settings)
-            .field("density_functions", &self.density_functions)
             .field("normal_noises", &self.normal_noises)
             .finish()
     }
 }
-
-//const SZ_XZ: i32 = 16 * 8;
 
 impl<'m> MinecraftData<'m> {
     pub fn new(arena: &'m Bump, raw: MinecraftDataRaw, chunk_size: usize) -> MinecraftData<'m> {
@@ -176,106 +189,154 @@ impl<'m> MinecraftData<'m> {
             arena,
             raw_data: raw,
             noise_settings: HashMap::new(),
-            density_functions: HashMap::new(),
-            normal_noises: HashMap::new(),
+            root: None,
+            normal_noises: RefCell::new(HashMap::new()),
             chunk_size,
+            context: RefCell::new(Vec::new()),
+            reachable: RefCell::new(BTreeSet::new()),
         }
     }
 
-    pub fn from_noise_router(
-        arena: &'m Bump,
-        raw_data: MinecraftDataRaw,
-        router: NoiseRouter<'m>,
-    ) -> MinecraftData<'m> {
-        let overworld_noise_generator_settings = NoiseGeneratorSettings {
-            aquifers_enabled: true,
-            default_block: "minecraft:stone".to_string(),
-            default_fluid: "minecraft:water".to_string(),
-            default_fluid_level: 64,
-            disable_mob_generation: false,
-            noise: NoiseSettings {
-                height: 384,
-                min_y: -64,
-                size_horizontal: 1,
-                size_vertical: 2,
-            },
-            noise_router: router,
-            sea_level: 63,
+    /// Parses the noise settings `id` (e.g. `minecraft:overworld`) and everything it references.
+    /// Nothing else is parsed, so broken unrelated files don't matter.
+    pub fn parse_root(&mut self, id: &str) -> ParseResult<&NoiseGeneratorSettings<'m>> {
+        if let Some(bad) = self.raw_data.invalid_utf8.iter().next() {
+            let (kind, bad_id) = bad.clone();
+            return Err(CompileError::Unsupported { kind, id: bad_id, message: "file is not valid UTF-8".into() });
+        }
+        let id = normalize_id(id);
+        let Some(json_str) = self.raw_data.noise_settings.get(&id) else {
+            return Err(CompileError::Unsupported {
+                kind: ResourceKind::NoiseSettings,
+                id,
+                message: "noise settings were not provided".into(),
+            });
         };
-        MinecraftData {
-            arena,
-            raw_data,
-            noise_settings: HashMap::from([(
-                "minecraft:overworld".to_string(),
-                overworld_noise_generator_settings,
-            )]),
-            density_functions: HashMap::new(),
-            normal_noises: HashMap::new(),
-            chunk_size: 16,
+        let parsed = self.with_context(ResourceKind::NoiseSettings, &id, || self.parse_noise_settings(json_str))?;
+        self.noise_settings.insert(id.clone(), parsed);
+        self.root = Some(id.clone());
+        Ok(&self.noise_settings[&id])
+    }
+
+    /// The noise settings of the last [`MinecraftData::parse_root`], as currently stored in
+    /// `noise_settings` (callers may have replaced parts of it).
+    pub fn root(&self) -> Option<&NoiseGeneratorSettings<'m>> {
+        self.noise_settings.get(self.root.as_ref()?)
+    }
+
+    /// The density functions and noises reached from the parsed roots, sorted by kind and id.
+    pub fn reachable(&self) -> Vec<(ResourceKind, String)> {
+        self.reachable.borrow().iter().cloned().collect()
+    }
+
+    /// Runs `f` with `(kind, id)` as the resource that errors are attributed to.
+    pub(crate) fn with_context<T>(&self, kind: ResourceKind, id: &str, f: impl FnOnce() -> ParseResult<T>) -> ParseResult<T> {
+        self.context.borrow_mut().push((kind, id.to_string()));
+        let result = f();
+        self.context.borrow_mut().pop();
+        result
+    }
+
+    /// An `Unsupported` error about the resource being parsed.
+    pub(crate) fn unsupported(&self, message: impl Into<String>) -> CompileError {
+        let (kind, id) = self
+            .context
+            .borrow()
+            .last()
+            .cloned()
+            .unwrap_or((ResourceKind::NoiseSettings, String::new()));
+        CompileError::Unsupported { kind, id, message: message.into() }
+    }
+
+    /// An `Unsupported` error naming the missing resource `id` and who referenced it.
+    pub(crate) fn missing_reference(&self, kind: ResourceKind, id: &str) -> CompileError {
+        let from = self.context.borrow().last().map(|(_, from)| from.clone()).unwrap_or_default();
+        CompileError::Unsupported {
+            kind,
+            id: id.to_string(),
+            message: format!("{} `{}` is referenced from `{}` but was not provided", kind, id, from),
         }
     }
 
-    pub fn parse_from_raw(&mut self) {
-        let raw = &self.raw_data;
-        for (name, json_str) in &raw.normal_noises {
-            let parsed: NormalNoiseType = serde_json::from_str(&json_str).unwrap();
-            let noise = self.arena.alloc(parsed);
-            self.normal_noises.insert(name.to_string(), noise);
-        }
-
-        for (name, json_str) in &raw.noise_settings {
-            // let parsed = { self.parse_noise_settings(&json_str).unwrap() };
-            // self.noise_settings.insert(name, parsed);
-            let parsed = {
-                let tmp = self.parse_noise_settings(&json_str).unwrap();
-                tmp
-            };
-            self.noise_settings.insert(name.to_string(), parsed);
-        }
-
-        // parsing these is not necessarily needed, as they are just imports
-        // but it's useful for debugging
-        // for (name, json_str) in &raw.density_functions {
-        //     let parsed = self.parse_density_function(&json_str);
-        //     self.density_functions.insert(name.to_string(), parsed);
-        // }
+    pub(crate) fn field<'v>(&self, obj: &'v JsonObject, ty: &str, key: &str) -> ParseResult<&'v Value> {
+        obj.get(key)
+            .ok_or_else(|| self.unsupported(format!("missing field `{}` in `{}`", key, ty)))
     }
 
-    fn parse_noise_settings(
-        &self,
-        json_str: &str,
-    ) -> Result<NoiseGeneratorSettings<'m>, serde_json::Error> {
-        let value: serde_json::Value = serde_json::from_str(json_str)?;
-        let aquifers_enabled = value
+    pub(crate) fn f64_field(&self, obj: &JsonObject, ty: &str, key: &str) -> ParseResult<f64> {
+        self.field(obj, ty, key)?
+            .as_f64()
+            .ok_or_else(|| self.unsupported(format!("field `{}` in `{}` must be a number", key, ty)))
+    }
+
+    pub(crate) fn i32_field(&self, obj: &JsonObject, ty: &str, key: &str) -> ParseResult<i32> {
+        self.field(obj, ty, key)?
+            .as_i64()
+            .map(|v| v as i32)
+            .ok_or_else(|| self.unsupported(format!("field `{}` in `{}` must be an integer", key, ty)))
+    }
+
+    pub(crate) fn str_field<'v>(&self, obj: &'v JsonObject, ty: &str, key: &str) -> ParseResult<&'v str> {
+        self.field(obj, ty, key)?
+            .as_str()
+            .ok_or_else(|| self.unsupported(format!("field `{}` in `{}` must be a string", key, ty)))
+    }
+
+    /// The noise `name`, parsed on first use.
+    pub(crate) fn noise(&self, name: &str) -> ParseResult<NormalNoise<'m>> {
+        let id = normalize_id(name);
+        if let Some(noise) = self.normal_noises.borrow().get(&id) {
+            return Ok(*noise);
+        }
+        let Some(json_str) = self.raw_data.normal_noises.get(&id) else {
+            return Err(self.missing_reference(ResourceKind::Noise, &id));
+        };
+        let parsed: NormalNoiseType = self.with_context(ResourceKind::Noise, &id, || {
+            serde_json::from_str(json_str).map_err(|e| self.unsupported(format!("invalid noise: {}", e)))
+        })?;
+        let noise: NormalNoise<'m> = self.arena.alloc(parsed);
+        self.normal_noises.borrow_mut().insert(id.clone(), noise);
+        self.reachable.borrow_mut().insert((ResourceKind::Noise, id));
+        Ok(noise)
+    }
+
+    /// Records a density function reference as reachable.
+    pub(crate) fn reached_density_function(&self, id: &str) {
+        self.reachable.borrow_mut().insert((ResourceKind::DensityFunction, id.to_string()));
+    }
+
+    fn parse_noise_settings(&self, json_str: &str) -> ParseResult<NoiseGeneratorSettings<'m>> {
+        let value: Value = serde_json::from_str(json_str)
+            .map_err(|e| self.unsupported(format!("invalid JSON: {}", e)))?;
+        let Some(obj) = value.as_object() else {
+            return Err(self.unsupported("noise settings must be an object"));
+        };
+        let aquifers_enabled = obj
             .get("aquifers_enabled")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-        let default_block = value
-            .get("default_block")
-            .and_then(|v| v.get("Name"))
+        let default_block = self.field(obj, "noise settings", "default_block")?;
+        let default_block = default_block
+            .as_object()
+            .ok_or_else(|| self.unsupported("`default_block` must be an object"))
+            .and_then(|b| self.str_field(b, "default_block", "Name"))?;
+        let fluid = self.field(obj, "noise settings", "default_fluid")?;
+        let fluid = fluid
+            .as_object()
+            .ok_or_else(|| self.unsupported("`default_fluid` must be an object"))?;
+        let default_fluid = self.str_field(fluid, "default_fluid", "Name")?.to_string();
+        let default_fluid_level = fluid
+            .get("Properties")
+            .and_then(|v| v.get("level"))
             .and_then(|v| v.as_str())
-            .expect("default_block.Name missing");
-        let (default_fluid, default_fluid_level) = if let Some(fluid) = value.get("default_fluid") {
-            let name = fluid
-                .get("Name")
-                .and_then(|v| v.as_str())
-                .expect("default_fluid.Name missing");
-            let level = fluid
-                .get("Properties")
-                .and_then(|v| v.get("level"))
-                .and_then(|v| v.as_str())
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(0);
-            (name.to_string(), level)
-        } else {
-            panic!("default_fluid missing");
-        };
-        let disable_mob_generation = value
+            .and_then(|s| s.parse::<i32>().ok())
+            .unwrap_or(0);
+        let disable_mob_generation = obj
             .get("disable_mob_generation")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        let sea_level = value
+        let sea_level = obj
             .get("sea_level")
             .and_then(|v| v.as_i64())
             .map(|v| v as i32)
@@ -283,12 +344,11 @@ impl<'m> MinecraftData<'m> {
 
         // legacy_random_source is ignored
 
-        let noise_value = value.get("noise").expect("noise field missing");
-        let noise: NoiseSettings = serde_json::from_value(noise_value.clone())?;
-        let noise_router_value = value
-            .get("noise_router")
-            .expect("noise_router field missing");
-        let noise_router = self.parse_noise_router(noise_router_value, &noise);
+        let noise_value = self.field(obj, "noise settings", "noise")?;
+        let noise: NoiseSettings = serde_json::from_value(noise_value.clone())
+            .map_err(|e| self.unsupported(format!("invalid `noise`: {}", e)))?;
+        let noise_router_value = self.field(obj, "noise settings", "noise_router")?;
+        let noise_router = self.parse_noise_router(noise_router_value, &noise)?;
 
         Ok(NoiseGeneratorSettings {
             aquifers_enabled,
@@ -302,127 +362,36 @@ impl<'m> MinecraftData<'m> {
         })
     }
 
-    fn parse_noise_router(
-        &self,
-        value: &serde_json::Value,
-        settings: &NoiseSettings,
-    ) -> NoiseRouter<'m> {
-        let barrier = if let Some(barrier_value) = value.get("barrier") {
-            self.parse_density_function_from_value_and_name(barrier_value, "barrier")
-        } else {
-            panic!("Missing barrier field in noise_router")
+    fn parse_noise_router(&self, value: &Value, settings: &NoiseSettings) -> ParseResult<NoiseRouter<'m>> {
+        let Some(router) = value.as_object() else {
+            return Err(self.unsupported("`noise_router` must be an object"));
         };
-        let continents = if let Some(continents_value) = value.get("continents") {
-            self.parse_density_function_from_value_and_name(continents_value, "continents")
-        } else {
-            panic!("Missing continents field in noise_router")
+        let route = |key: &str| {
+            let value = self.field(router, "noise_router", key)?;
+            self.parse_density_function_from_value_and_name(value, key)
         };
-        let depth = if let Some(depth_value) = value.get("depth") {
-            self.parse_density_function_from_value_and_name(depth_value, "depth")
-        } else {
-            panic!("Missing depth field in noise_router")
-        };
-        let erosion = if let Some(erosion_value) = value.get("erosion") {
-            self.parse_density_function_from_value_and_name(erosion_value, "erosion")
-        } else {
-            panic!("Missing erosion field in noise_router")
-        };
-        let final_density = if let Some(final_density_value) = value.get("final_density") {
-            let parsed = self
-                .parse_density_function_from_value_and_name(final_density_value, "final_density");
-            // self.arena.alloc(model::DensityType::NamedDensityReference {
-            //     name: self.arena.alloc("final_density_with_beardify".to_string()),
-            //     argument: self.arena.alloc(model::DensityType::Add {
-            //         left: parsed,
-            //         right: self.arena.alloc(model::DensityType::Beardify),
-            //     }),
-            // })
-            parsed
-        } else {
-            panic!("Missing final_density field in noise_router")
-        };
-        let final_density_with_beard = if let Some(final_density_value) = value.get("final_density")
-        {
-            let parsed = self
-                .parse_density_function_from_value_and_name(final_density_value, "final_density");
-            self.arena.alloc(model::DensityType::NamedDensityReference {
-                name: self.arena.alloc("final_density_with_beardify".to_string()),
-                argument: self.arena.alloc(model::DensityType::Add {
-                    left: parsed,
-                    right: self.arena.alloc(model::DensityType::Beardify),
-                }),
-            })
-            // self.arena.alloc(model::DensityType::NamedDensityReference {
-            //     name: self.arena.alloc("final_density_with_beardify".to_string()),
-            //     argument: self.arena.alloc(model::DensityType::Beardify),
-            // })
-        } else {
-            panic!("Missing final_density field in noise_router")
-        };
-        let fluid_level_floodedness =
-            if let Some(fluid_level_floodedness_value) = value.get("fluid_level_floodedness") {
-                self.parse_density_function_from_value_and_name(
-                    fluid_level_floodedness_value,
-                    "fluid_level_floodedness",
-                )
-            } else {
-                panic!("Missing fluid_level_floodedness field in noise_router")
-            };
-        let fluid_level_spread =
-            if let Some(fluid_level_spread_value) = value.get("fluid_level_spread") {
-                self.parse_density_function_from_value_and_name(
-                    fluid_level_spread_value,
-                    "fluid_level_spread",
-                )
-            } else {
-                panic!("Missing fluid_level_spread field in noise_router")
-            };
-
-        let preliminary_surface_level =
-            if let Some(preliminary_surface_level_value) = value.get("preliminary_surface_level") {
-                self.parse_density_function_from_value_and_name(
-                    preliminary_surface_level_value,
-                    "preliminary_surface_level",
-                )
-            } else {
-                panic!("Missing preliminary_surface_level field in noise_router")
-            };
-
-        let lava = if let Some(lava_value) = value.get("lava") {
-            self.parse_density_function_from_value_and_name(lava_value, "lava")
-        } else {
-            panic!("Missing lava field in noise_router")
-        };
-        let ridges = if let Some(ridges_value) = value.get("ridges") {
-            self.parse_density_function_from_value_and_name(ridges_value, "ridges")
-        } else {
-            panic!("Missing ridges field in noise_router")
-        };
-        let temperature = if let Some(temperature_value) = value.get("temperature") {
-            self.parse_density_function_from_value_and_name(temperature_value, "temperature")
-        } else {
-            panic!("Missing temperature field in noise_router")
-        };
-        let vegetation = if let Some(vegetation_value) = value.get("vegetation") {
-            self.parse_density_function_from_value_and_name(vegetation_value, "vegetation")
-        } else {
-            panic!("Missing vegetation field in noise_router")
-        };
-        let vein_gap = if let Some(vein_gap_value) = value.get("vein_gap") {
-            self.parse_density_function_from_value_and_name(vein_gap_value, "vein_gap")
-        } else {
-            panic!("Missing vein_gap field in noise_router")
-        };
-        let vein_ridged = if let Some(vein_ridged_value) = value.get("vein_ridged") {
-            self.parse_density_function_from_value_and_name(vein_ridged_value, "vein_ridged")
-        } else {
-            panic!("Missing vein_ridged field in noise_router")
-        };
-        let vein_toggle = if let Some(vein_toggle_value) = value.get("vein_toggle") {
-            self.parse_density_function_from_value_and_name(vein_toggle_value, "vein_toggle")
-        } else {
-            panic!("Missing vein_toggle field in noise_router")
-        };
+        let barrier = route("barrier")?;
+        let continents = route("continents")?;
+        let depth = route("depth")?;
+        let erosion = route("erosion")?;
+        let final_density = route("final_density")?;
+        let final_density_with_beard = self.arena.alloc(model::DensityType::NamedDensityReference {
+            name: self.arena.alloc("final_density_with_beardify".to_string()),
+            argument: self.arena.alloc(model::DensityType::Add {
+                left: route("final_density")?,
+                right: self.arena.alloc(model::DensityType::Beardify),
+            }),
+        });
+        let fluid_level_floodedness = route("fluid_level_floodedness")?;
+        let fluid_level_spread = route("fluid_level_spread")?;
+        let preliminary_surface_level = route("preliminary_surface_level")?;
+        let lava = route("lava")?;
+        let ridges = route("ridges")?;
+        let temperature = route("temperature")?;
+        let vegetation = route("vegetation")?;
+        let vein_gap = route("vein_gap")?;
+        let vein_ridged = route("vein_ridged")?;
+        let vein_toggle = route("vein_toggle")?;
 
         let aquifer_sampler = self.arena.alloc(model::DensityType::NamedDensityReference {
             name: self.arena.alloc("aquifer".into()),
@@ -437,7 +406,7 @@ impl<'m> MinecraftData<'m> {
             }),
         });
 
-        NoiseRouter {
+        Ok(NoiseRouter {
             barrier: DensitySource::SingleSamplingDensity { density: barrier },
             // continents: DensitySource::SingleSamplingDensity {
             //     density: continents,
@@ -529,7 +498,15 @@ impl<'m> MinecraftData<'m> {
                 ),
                 coordinate_type: CoordinateType::Biome,
             },
-            vein_gap: DensitySource::SingleSamplingDensity { density: vein_gap },
+            vein_gap: DensitySource::MultiSamplingDensity {
+                density: vein_gap,
+                dimensions: (
+                    self.chunk_size as i32,
+                    settings.height,
+                    self.chunk_size as i32,
+                ),
+                coordinate_type: CoordinateType::Terrain,
+            },
             vein_ridged: DensitySource::MultiSamplingDensity {
                 density: vein_ridged,
                 dimensions: (
@@ -559,7 +536,7 @@ impl<'m> MinecraftData<'m> {
                 ),
                 coordinate_type: CoordinateType::Terrain,
             },
-        }
+        })
     }
 }
 
